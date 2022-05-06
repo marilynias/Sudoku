@@ -5,7 +5,7 @@ from pygame import mouse, display, Surface, sprite, font, time
 
 
 def main():
-    global tiles, UIs, edit_mode, holding_mb1, dbcT
+    global tiles, UIs, edit_mode, holding_mb1, dbcT, solution
     # Display
     pygame.init()
     display_game = display.set_mode((800,600))
@@ -137,7 +137,7 @@ def build_Board(sudoku, tiles, cubesize):
         for j in range(9):
             ind = i*9+j
             tiles.add(
-                Tile(cubesize, ((i*cubesize), (j*cubesize)), sudoku[ind], tile_font))
+                Tile(cubesize, ((i*cubesize), (j*cubesize)), sudoku[ind], tile_font, ind))
 
     # add UI
     ui_x = mon.current_w - cubesize - 10
@@ -145,10 +145,14 @@ def build_Board(sudoku, tiles, cubesize):
     UIs.add(UIButton(cubesize, (ui_x, 10), "Mark", ui_font, 1))
     UIs.add(UIButton(cubesize, (ui_x, size_margin), "SMark", ui_font, 2))
     UIs.add(ClearButton(cubesize, (ui_x, size_margin*2), "clear", ui_font))
-    UIs.add(ColorButton(cubesize, (ui_x, size_margin*3), "", ui_font, pygame.Color("green")))
-    UIs.add(ColorButton(cubesize, (ui_x, size_margin*4), "", ui_font, pygame.Color("red")))
-    UIs.add(ColorButton(cubesize, (ui_x, size_margin*5), "", ui_font, pygame.Color("yellow")))
-    UIs.add(ColorButton(cubesize, (ui_x, size_margin*5), "", ui_font, pygame.Color("grey")))
+    UIs.add(CheckButton(cubesize, (ui_x, size_margin*3), "Check", ui_font))
+    UIs.add(ColorButton(cubesize, (ui_x - size_margin, 10), "", ui_font, pygame.Color("grey")))
+    UIs.add(ColorButton(cubesize, (ui_x - size_margin, size_margin*1), "", ui_font, pygame.Color("green")))
+    UIs.add(ColorButton(cubesize, (ui_x - size_margin, size_margin*2), "", ui_font, pygame.Color("red")))
+    UIs.add(ColorButton(cubesize, (ui_x - size_margin, size_margin*3), "", ui_font, pygame.Color("yellow")))
+    
+
+    
 
 
 def get_sudoku():
@@ -176,6 +180,8 @@ def draw_lines(gameBoard, cubesize):
                          (i*cubesize, 0), (i*cubesize, cubesize*9), width)
         pygame.draw.line(gameBoard, pygame.Color("black"),
                          (0, i*cubesize), (cubesize*9, i*cubesize), width)
+    
+
 
 class Tile_parent(sprite.Sprite):
     def __init__(self, size:int, position:tuple, string:str, font:font.Font) -> None:
@@ -213,14 +219,14 @@ class Tile_parent(sprite.Sprite):
         self.txt = self.txtfont.render(self.value, True, (0, 0, 0))
         self.update_sprite()
 
-
 class Tile(Tile_parent):
-    def __init__(self, size:int, position:tuple, string:str, tfont: font.Font) -> None:
+    def __init__(self, size:int, position:tuple, string:str, tfont: font.Font, ind: int) -> None:
         super().__init__(size, position, string, tfont)
         self._penmark_font = font.SysFont('Arial', math.floor(size/4))
         self._spenmark_font = font.SysFont('Arial', math.floor(size/3))
         self.pen_marks = []
         self.spen_marks = []
+        self.index = ind
         marktxt = self._penmark_font.render("0", True, (0, 0, 0))
         markx = marktxt.get_width()
         marky = marktxt.get_height()
@@ -317,9 +323,9 @@ class Tile(Tile_parent):
                 return
             self.update_sprite()
 
-    def update_color(self, color: pygame.Color):
+    def update_color(self, color: pygame.Color, forced = False):
         
-        if self.bg == color:
+        if self.bg == color and not forced:
             if not self._locked:
                 self.bg = pygame.Color("white")
             else:
@@ -334,7 +340,6 @@ class Tile(Tile_parent):
             self.spen_marks = []
             self.value = ""
             self.update_sprite()
-
 
 class UIButton(Tile_parent):
     def __init__(self, size:int, position:tuple, string:str, font:font.Font, mode:int) -> None:
@@ -390,6 +395,55 @@ class ColorButton(Tile_parent):
             assert isinstance(tile, Tile)
             if tile.selected:
                 tile.update_color(self.bg)
+
+
+class CheckButton(Tile_parent):
+    def __init__(self, size, position, string, font) -> None:
+        super().__init__(size, position, string, font)
+        assert isinstance(self.rect, pygame.Rect)
+        self._txt_pos = (self.rect.size[0]/2 - self.txt.get_size()[0]/2,
+                         self.rect.size[1]/2 - self.txt.get_size()[1]/2)
+        self.update_sprite()
+
+    def select(self):
+        sudString = ""
+        for tile in tiles:
+            assert isinstance(tile, Tile)
+            if tile.value == "":
+                c = "."
+            else:
+                c = tile.value
+            sudString = sudString+str(c)
+
+        for i in range(len(solution)):
+            wrongtiles = []
+            righttiles = []
+            
+            self.bg = pygame.Color("green")
+            for i, tile in enumerate(tiles):
+                assert isinstance(tile, Tile)
+                if solution[i] != sudString[i]:
+                    if tile.value == "":
+                        tile.update_color(pygame.Color("white"), True)
+                    else:
+                        tile.update_color(pygame.Color("red"), True)
+                        self.bg = pygame.Color("red")
+                # elif not tile._locked:
+                #     self.bg = pygame.Color("green")
+                    # tile.update_color(pygame.Color("green"), True)
+            self.update_sprite()
+
+
+            # if solution[i] != sudString[i]:
+            #     for tile in tiles:
+            #         assert isinstance(tile, Tile)
+            #         if tile.index == i and tile.value != "":
+            #             tile.update_color(pygame.Color("red"))
+            # else:
+            #     for tile in tiles:
+            #         assert isinstance(tile, Tile)
+            #         if tile.index == i and tile.value != "":
+            #             tile.update_color(pygame.Color("green"))
 
 def print_sudoku(sudoku):
     
