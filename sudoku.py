@@ -49,7 +49,6 @@ def main():
         display.update()
         display.flip()
 
-
 def get_input(gameBoard: Surface, dbcClock:time.Clock):
     global holding_mb1
     events = pygame.event.get()
@@ -144,14 +143,13 @@ def build_Board(tiles:list, cubesize:int):
     UIs.add(UIButton(cubesize, (ui_x, size_margin), "SMark", ui_font, 2))
     UIs.add(ClearButton(cubesize, (ui_x, size_margin*2), "clear", ui_font))
     UIs.add(CheckButton(cubesize, (ui_x, size_margin*3), "Check", ui_font))
+    UIs.add(NextMoveButton(cubesize, (ui_x, size_margin*4), "Next", ui_font))
+
+
     UIs.add(ColorButton(cubesize, (ui_x - size_margin, 10), "", ui_font, pygame.Color("grey")))
     UIs.add(ColorButton(cubesize, (ui_x - size_margin, size_margin*1), "", ui_font, pygame.Color("green")))
     UIs.add(ColorButton(cubesize, (ui_x - size_margin, size_margin*2), "", ui_font, pygame.Color("red")))
     UIs.add(ColorButton(cubesize, (ui_x - size_margin, size_margin*3), "", ui_font, pygame.Color("yellow")))
-    
-
-    
-
 
 def get_sudoku():
     clean_out = []
@@ -181,7 +179,17 @@ def get_sudoku():
             sud_line = []
             sol_line = []
 
+    # new_sudoku = [  [".",".","1",  ".",".",".",  ".",".","."],
+    #                 [".",".",".",  ".",".",".",  ".",".","."],
+    #                 [".",".",".",  ".",".",".",  ".",".","."],
 
+    #                 [".",".",".",  ".",".",".",  ".",".","."],
+    #                 [".","1",".",  ".",".",".",  ".",".","."],
+    #                 [".",".",".",  ".",".",".",  ".",".","."],
+
+    #                 ["5",".",".",  ".",".",".",  ".",".","."],
+    #                 [".",".",".",  ".",".",".",  ".",".","."],
+    #                 [".",".",".",  ".",".","1",  ".",".","."]]
     return new_sudoku, new_solution
 
 def draw_lines(gameBoard, cubesize):
@@ -197,7 +205,6 @@ def draw_lines(gameBoard, cubesize):
                          (i*cubesize, 0), (i*cubesize, cubesize*9), width)
         pygame.draw.line(gameBoard, pygame.Color("black"),
                          (0, i*cubesize), (cubesize*9, i*cubesize), width)
-    
 
 
 class Tile_parent(sprite.Sprite):
@@ -445,6 +452,130 @@ class CheckButton(Tile_parent):
                     tile.update_color(pygame.Color("green"), True)
         self.update_sprite()
 
+class NextMoveButton(Tile_parent):
+    def __init__(self, size, position, string, font) -> None:
+        super().__init__(size, position, string, font)
+        self.update_sprite()
+
+    def select(self):
+        global uniqueAt
+        uniqueAt = ((),)
+        for i, row in enumerate(tiles):
+            for j, tile in enumerate(row):
+                assert isinstance(tile, Tile)
+                block = self.getBlock(i, j)
+                if i == 5 and j == 5:
+                    print()
+                if tile.value == "" or True:
+                    num = self.getNext(i,j,block)
+                    if num != None:
+                        tile.update_color(pygame.Color("yellow"))
+                        tile.update_value(str(num))
+                        print("(" + str(i+1) + ", " + str(j+1) + "): " + str(num))
+                        
+                        return
+                    
+                    
+        self.update_sprite()
+
+    def getNext (self, x, y, block):
+        num = self.soleCandidate(x, y, block)
+        if num != None:
+            print("sole Candidate:")
+            return num
+        # num = self.uniqueCandidate(x, y, block)
+        # if num != None:
+        #     print("Unique Candidate:")
+        #     return num
+
+    def soleCandidate(self, x, y, block):
+        
+        imposs = self.getListImpossibles(x, y, block)
+        if len(imposs) == 8:
+            for i in range(1, 10, 1):
+                if not str(i) in imposs:
+                    return i
+
+    def uniqueCandidate(self, x, y, block):
+        if x in (0,3,6) and y in (0,3,6):
+            if x == 6 and y == 0:
+                print(str(x) + str(y))
+            possibleBlocks = [
+                self.getListPossibles(tile.index[0], tile.index[1], block) for tile in block]
+            for i in range(1, 10, 1):
+                # count occurences
+                poss = [True for j in possibleBlocks if str(i) in j]
+                num = poss.count(True)
+                if num == 1:
+                    ind = 10
+                    for posTile in possibleBlocks:
+                        if str(num) in posTile:
+                            ind = possibleBlocks.index(posTile)
+                            break
+                    column = ind%3
+                    row = math.floor(ind/3)
+                    global uniqueAt
+                    uniqueAt = ((x+row, y+column), 1)
+                    break
+        if (x,y) == uniqueAt[0]:
+            assert len(uniqueAt) == 2
+            return uniqueAt[1]
+
+
+    def getBlock(self, x, y):
+        block = []
+        blockpos = []
+        if 0 <= x < 3:
+            blockpos.append(0)
+        elif 3 <= x < 6:
+            blockpos.append(3)
+        elif 6 <= x < 9:
+            blockpos.append(6)
+
+        if 0 <= y < 3:
+            blockpos.append(0)
+        elif 3 <= y < 6:
+            blockpos.append(3)
+        elif 6 <= y < 9:
+            blockpos.append(6)
+
+        for i in range(3):
+            # row = []
+            for j in range(3):
+                block.append(self.getTileAtPos(blockpos[0]+i, blockpos[1]+j))
+            # block.append(row)
+
+        return block
+
+    def getListImpossibles(self, x, y, box):
+        impossibleValues = []
+        #row
+        t = self.getTileAtPos(x,y)
+        assert isinstance(t, Tile)
+        if t.value == "":
+            for row in tiles:
+                for tile in row:
+                    assert isinstance(tile, Tile)
+                    if tile.index[0] == x or tile.index[1] == y or tile in box:
+                        if tile.value != "" and tile.value not in impossibleValues:
+                            impossibleValues.append(tile.value)
+        else:
+            impossibleValues = ["1", "2", "3", "4", "5", "6", "7", "8", "9"]
+        return impossibleValues
+
+    def getListPossibles(self, x, y, box):
+        impossible = self.getListImpossibles(x, y, box)
+        possibles = [x for x in ["1","2","3","4","5","6","7","8","9"] if x not in impossible]
+        
+        return possibles
+
+    def getTileAtPos(self, x, y):
+        for i, row in enumerate(tiles):
+            for j, tile in enumerate(row):
+                assert isinstance(tile, Tile)
+                if tile.index == (x,y):
+                    return tile
+        return
 
 if __name__ == "__main__":
     main()
