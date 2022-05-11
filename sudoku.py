@@ -157,7 +157,7 @@ def build_Board(sudoku, tiles, cubesize):
 
 def get_sudoku():
     clean_out = []
-    with sp.Popen(["node", "qqwing-1.3.4\\qqwing-main-1.3.4.min.js", "--generate", "1", "--one-line", "--solution", "--difficulty", "easy"], stdout=sp.PIPE) as proc:
+    with sp.Popen(["node", "qqwing-1.3.4\\qqwing-main-1.3.4.min.js", "--generate", "1", "--one-line", "--solution", "--difficulty", "simple"], stdout=sp.PIPE) as proc:
         assert proc.stdout is not None
         print(type(proc.stdout))
         out = proc.stdout.readlines()
