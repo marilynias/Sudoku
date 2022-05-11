@@ -479,14 +479,14 @@ class NextMoveButton(Tile_parent):
         self.update_sprite()
 
     def getNext (self, x, y, block):
-        num = self.soleCandidate(x, y, block)
-        if num != None:
-            print("sole Candidate:")
-            return num
-        # num = self.uniqueCandidate(x, y, block)
+        # num = self.soleCandidate(x, y, block)
         # if num != None:
-        #     print("Unique Candidate:")
+        #     print("sole Candidate:")
         #     return num
+        num = self.uniqueCandidate(x, y, block)
+        if num != None:
+            print("Unique Candidate:")
+            return num
 
     def soleCandidate(self, x, y, block):
         
@@ -509,14 +509,15 @@ class NextMoveButton(Tile_parent):
                 if num == 1:
                     ind = 10
                     for posTile in possibleBlocks:
-                        if str(num) in posTile:
+                        if str(num) in posTile and posTile != []:
                             ind = possibleBlocks.index(posTile)
                             break
-                    column = ind%3
-                    row = math.floor(ind/3)
-                    global uniqueAt
-                    uniqueAt = ((x+row, y+column), 1)
-                    break
+                    if ind < 10:
+                        column = ind%3
+                        row = math.floor(ind/3)
+                        global uniqueAt
+                        uniqueAt = ((x+row, y+column), i)
+                        break
         if (x,y) == uniqueAt[0]:
             assert len(uniqueAt) == 2
             return uniqueAt[1]
