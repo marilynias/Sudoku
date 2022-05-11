@@ -134,7 +134,6 @@ def build_Board(tiles:list, cubesize:int):
     for row in range(len(sudoku)):
                      # add tiles
         for column in range(len(sudoku[row])):
-            ind = row*9+column
             tiles[row].add(
                 Tile(cubesize, (row, column), sudoku[row][column], tile_font))
 
@@ -240,7 +239,7 @@ class Tile_parent(sprite.Sprite):
 class Tile(Tile_parent):
     def __init__(self, size:int, position:tuple, string:str, tfont: font.Font) -> None:
         super().__init__(
-            size, (position[0]*size, position[1]*size), string, tfont)
+            size, (position[1]*size, position[0]*size), string, tfont)
         self._penmark_font = font.SysFont('Arial', math.floor(size/4))
         self._spenmark_font = font.SysFont('Arial', math.floor(size/3))
         self.pen_marks = []
@@ -326,7 +325,11 @@ class Tile(Tile_parent):
                     self.value = ""
                 else:
                     self.value = val
-                    sudoku[self.index[0]][self.index[1]] = val
+                    if val != "":
+                        sudoku[self.index[0]][self.index[1]] = val
+                    else:
+                        sudoku[self.index[0]][self.index[1]] = "."
+                    pass
                 
             elif edit_mode == 1 and self.value == "":
                 if val in self.pen_marks:
@@ -428,32 +431,47 @@ class CheckButton(Tile_parent):
         self.update_sprite()
 
     def select(self):
-        sudString = ""
-        for tile in tiles:
-            assert isinstance(tile, Tile)
-            if tile.value == "":
-                c = "."
-            else:
-                c = tile.value
-            sudString = sudString+str(c)
-
-        for i in range(len(solution)):
-            wrongtiles = []
-            righttiles = []
-            
-            self.bg = pygame.Color("green")
-            for i, tile in enumerate(tiles):
+        self.bg = pygame.Color("green")
+        for i, row in enumerate(tiles):
+            for j, tile in enumerate(row):
                 assert isinstance(tile, Tile)
-                if solution[i] != sudString[i]:
+                if sudoku[i][j] != solution[i][j]:
                     if tile.value == "":
                         tile.update_color(pygame.Color("white"), True)
                     else:
                         tile.update_color(pygame.Color("red"), True)
                         self.bg = pygame.Color("red")
-                # elif not tile._locked:
-                #     self.bg = pygame.Color("green")
-                    # tile.update_color(pygame.Color("green"), True)
-            self.update_sprite()
+                elif not tile._locked:
+                    tile.update_color(pygame.Color("green"), True)
+        self.update_sprite()
+
+        # sudString = ""
+        # for row in tiles:
+        #     for tile in row:
+        #         assert isinstance(tile, Tile)
+        #         if tile.value == "":
+        #             c = "."
+        #         else:
+        #             c = tile.value
+        #         sudString = sudString+str(c)
+        # for row in solution:
+        #     for i in range(len(row)):
+        #         wrongtiles = []
+        #         righttiles = []
+                
+        #         self.bg = pygame.Color("green")
+        #         for i, tile in enumerate(tiles):
+        #             assert isinstance(tile, Tile)
+        #             if solution[i] != sudString[i]:
+        #                 if tile.value == "":
+        #                     tile.update_color(pygame.Color("white"), True)
+        #                 else:
+        #                     tile.update_color(pygame.Color("red"), True)
+        #                     self.bg = pygame.Color("red")
+        #             # elif not tile._locked:
+        #             #     self.bg = pygame.Color("green")
+        #                 # tile.update_color(pygame.Color("green"), True)
+        #         self.update_sprite()
 
 
 
