@@ -416,11 +416,11 @@ class ColorButton(Tile_parent):
         self.update_sprite() 
 
     def select(self):
-        for tile in tiles:
-            assert isinstance(tile, Tile)
-            if tile.selected:
-                tile.update_color(self.bg)
-
+        for row in tiles:
+            for tile in row:
+                assert isinstance(tile, Tile)
+                if tile.selected:
+                    tile.update_color(self.bg)
 
 class CheckButton(Tile_parent):
     def __init__(self, size, position, string, font) -> None:
@@ -444,36 +444,6 @@ class CheckButton(Tile_parent):
                 elif not tile._locked:
                     tile.update_color(pygame.Color("green"), True)
         self.update_sprite()
-
-        # sudString = ""
-        # for row in tiles:
-        #     for tile in row:
-        #         assert isinstance(tile, Tile)
-        #         if tile.value == "":
-        #             c = "."
-        #         else:
-        #             c = tile.value
-        #         sudString = sudString+str(c)
-        # for row in solution:
-        #     for i in range(len(row)):
-        #         wrongtiles = []
-        #         righttiles = []
-                
-        #         self.bg = pygame.Color("green")
-        #         for i, tile in enumerate(tiles):
-        #             assert isinstance(tile, Tile)
-        #             if solution[i] != sudString[i]:
-        #                 if tile.value == "":
-        #                     tile.update_color(pygame.Color("white"), True)
-        #                 else:
-        #                     tile.update_color(pygame.Color("red"), True)
-        #                     self.bg = pygame.Color("red")
-        #             # elif not tile._locked:
-        #             #     self.bg = pygame.Color("green")
-        #                 # tile.update_color(pygame.Color("green"), True)
-        #         self.update_sprite()
-
-
 
 
 if __name__ == "__main__":
