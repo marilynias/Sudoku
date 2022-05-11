@@ -5,7 +5,7 @@ from pygame import mouse, display, Surface, sprite, font, time
 
 
 def main():
-    global tiles, UIs, edit_mode, holding_mb1, dbcT, solution
+    global tiles, UIs, edit_mode, holding_mb1, dbcT, sudoku, solution
     # Display
     pygame.init()
     display_game = display.set_mode((800,600))
@@ -18,23 +18,20 @@ def main():
     dbcT = 1000
 
     # Sudoku
-    out = get_sudoku()
-    sudoku = out[0]
-    solution = out[1]
+    sudoku, solution = get_sudoku()
+    
 
     #board
     boardLocation = (20,20)
     
-    tiles = sprite.Group()
+    tiles = [sprite.Group() for row in sudoku]
     UIs = sprite.Group()
     # 0 = write full size(tile is that number), 1 = pencil mark (tile can be that number), 2 = strong mark(tile has to be one of these numbers)
     edit_mode = 0  
     holding_mb1 = False
     # holding_txt = font.SysFont('Arial', 10).render("holding", True,pygame.Color("red"))
-    build_Board(sudoku, tiles, cubesize)
+    build_Board(tiles, cubesize)
 
-    
-    # print_sudoku(sudoku)
     
 
     while running:
@@ -45,11 +42,10 @@ def main():
         # tiles.update()
         # UIs.update()
         
-        tiles.draw(gameBoard)
+        for row in tiles:
+            row.draw(gameBoard)
         draw_lines(gameBoard, cubesize)
         UIs.draw(display_game)
-        # if holding_mb1:
-        #     display_game.blit(holding_txt, (20, 20))
         display.update()
         display.flip()
 
@@ -83,10 +79,11 @@ def get_input(gameBoard: Surface, dbcClock:time.Clock):
             if event.unicode in ("1", "2", "3", "4", "5", "6", "7", "8", "9"):
                 update_selected(event.unicode)
             if event.key == 8:  #backspace
-                for tile in tiles:
-                    assert isinstance(tile, Tile)
-                    if tile.selected:
-                        tile.clear()
+                for row in tiles:
+                    for tile in row:
+                        assert isinstance(tile, Tile)
+                        if tile.selected:
+                            tile.clear()
 
     
     if holding_mb1 and gameBoard.get_rect().collidepoint(mouse_pos):
@@ -97,25 +94,27 @@ def get_input(gameBoard: Surface, dbcClock:time.Clock):
             tile.select()
 
 def update_selected(string:str):
-    for tile in tiles:
-        assert isinstance(tile, Tile_parent)
-        if tile.selected:
-            tile.update_value(string)
+    for row in tiles:
+        for tile in row:
+            assert isinstance(tile, Tile_parent)
+            if tile.selected:
+                tile.update_value(string)
 
 def select_tile_at(position:tuple):
     t_tile = None
-    for tile in tiles:
-        assert isinstance(tile, Tile_parent)
-        assert isinstance(tile.rect, pygame.Rect)
-        if tile.rect.collidepoint(position[0]-20, position[1]-20):
-            t_tile = tile
-        else:
-            mod = pygame.key.get_mods()
-            if mod != 256 and not holding_mb1:  # Left ALT
-                tile.deselect()
+    for row in tiles:
+        for tile in row:
+            assert isinstance(tile, Tile_parent)
+            assert isinstance(tile.rect, pygame.Rect)
+            if tile.rect.collidepoint(position[0]-20, position[1]-20):
+                t_tile = tile
             else:
-                pass
-            # t_tile = None
+                mod = pygame.key.get_mods()
+                if mod != 256 and not holding_mb1:  # Left ALT
+                    tile.deselect()
+                else:
+                    pass
+                # t_tile = None
     return t_tile
 
 def select_ui_at(position:tuple):
@@ -126,18 +125,18 @@ def select_ui_at(position:tuple):
             ui.select()
             return
 
-def build_Board(sudoku, tiles, cubesize):
+def build_Board(tiles:list, cubesize:int):
     
     tile_font = font.SysFont('Arial', math.floor(cubesize/2))
     ui_font = font.SysFont('Arial', math.floor(cubesize/4))
     mon = display.Info()
 
-    for i in range(9):
-        # add tiles
-        for j in range(9):
-            ind = i*9+j
-            tiles.add(
-                Tile(cubesize, ((i*cubesize), (j*cubesize)), sudoku[ind], tile_font, ind))
+    for row in range(len(sudoku)):
+                     # add tiles
+        for column in range(len(sudoku[row])):
+            ind = row*9+column
+            tiles[row].add(
+                Tile(cubesize, (row, column), sudoku[row][column], tile_font))
 
     # add UI
     ui_x = mon.current_w - cubesize - 10
@@ -165,7 +164,26 @@ def get_sudoku():
     for sudoku in out:
         cs = sudoku.decode('UTF-8')
         clean_out.append(cs[:-1])
-    return clean_out
+
+    sudoku = clean_out[0]
+    solution = clean_out[1]
+
+    new_sudoku = []
+    new_solution = []
+
+    sud_line = []
+    sol_line = []
+    for i in range(len(sudoku)):
+        sud_line.append(sudoku[i])
+        sol_line.append(solution[i])
+        if i%9 == 8:
+            new_sudoku.append(sud_line)
+            new_solution.append(sol_line)
+            sud_line = []
+            sol_line = []
+
+
+    return new_sudoku, new_solution
 
 def draw_lines(gameBoard, cubesize):
     for i in range(9):
@@ -220,13 +238,14 @@ class Tile_parent(sprite.Sprite):
         self.update_sprite()
 
 class Tile(Tile_parent):
-    def __init__(self, size:int, position:tuple, string:str, tfont: font.Font, ind: int) -> None:
-        super().__init__(size, position, string, tfont)
+    def __init__(self, size:int, position:tuple, string:str, tfont: font.Font) -> None:
+        super().__init__(
+            size, (position[0]*size, position[1]*size), string, tfont)
         self._penmark_font = font.SysFont('Arial', math.floor(size/4))
         self._spenmark_font = font.SysFont('Arial', math.floor(size/3))
         self.pen_marks = []
         self.spen_marks = []
-        self.index = ind
+        self.index = position
         marktxt = self._penmark_font.render("0", True, (0, 0, 0))
         markx = marktxt.get_width()
         marky = marktxt.get_height()
@@ -258,14 +277,15 @@ class Tile(Tile_parent):
 
     def select_all(self):
         # similar_tiles = [self]
-        for tile in tiles:
-            assert isinstance(tile,Tile)
-            if self.value == "":
-                for mark in self.pen_marks:
-                    if mark in tile.pen_marks:
-                        tile.select()
-            elif tile.value == self.value:
-                tile.select()
+        for row in tiles:
+            for tile in row:
+                assert isinstance(tile,Tile)
+                if self.value == "":
+                    for mark in self.pen_marks:
+                        if mark in tile.pen_marks:
+                            tile.select()
+                elif tile.value == self.value:
+                    tile.select()
         
 
 
@@ -306,6 +326,7 @@ class Tile(Tile_parent):
                     self.value = ""
                 else:
                     self.value = val
+                    sudoku[self.index[0]][self.index[1]] = val
                 
             elif edit_mode == 1 and self.value == "":
                 if val in self.pen_marks:
@@ -379,10 +400,11 @@ class ClearButton(Tile_parent):
         self.update_sprite()
 
     def select(self):
-        for tile in tiles:
-            assert isinstance(tile, Tile)
-            if tile.selected:
-                tile.clear()
+        for row in tiles:
+            for tile in row:
+                assert isinstance(tile, Tile)
+                if tile.selected:
+                    tile.clear()
 
 class ColorButton(Tile_parent):
     def __init__(self, size: int, position: tuple, string: str, font: font.Font, color: pygame.Color) -> None:
@@ -432,27 +454,6 @@ class CheckButton(Tile_parent):
                 #     self.bg = pygame.Color("green")
                     # tile.update_color(pygame.Color("green"), True)
             self.update_sprite()
-
-
-            # if solution[i] != sudString[i]:
-            #     for tile in tiles:
-            #         assert isinstance(tile, Tile)
-            #         if tile.index == i and tile.value != "":
-            #             tile.update_color(pygame.Color("red"))
-            # else:
-            #     for tile in tiles:
-            #         assert isinstance(tile, Tile)
-            #         if tile.index == i and tile.value != "":
-            #             tile.update_color(pygame.Color("green"))
-
-def print_sudoku(sudoku):
-    
-    for i in range(0, len(sudoku), 9):
-        if i % 27 == 0:
-            print("_________")
-        print(sudoku[i] + sudoku[i+1] + sudoku[i+2] + "|" + sudoku[i+3] + sudoku[i+4] + sudoku[i+5] + "|" + sudoku[i+6] + sudoku[i+7] + sudoku[i+8])
-        
-    print("_________")
 
 
 
