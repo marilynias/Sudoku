@@ -153,7 +153,7 @@ def build_Board(tiles:list, cubesize:int):
 
 def get_sudoku():
     clean_out = []
-    with sp.Popen(["node", "qqwing-1.3.4\\qqwing-main-1.3.4.min.js", "--generate", "1", "--one-line", "--solution", "--difficulty", "simple"], stdout=sp.PIPE) as proc:
+    with sp.Popen(["node", "qqwing-1.3.4\\qqwing-main-1.3.4.min.js", "--generate", "1", "--one-line", "--solution", "--difficulty", "easy"], stdout=sp.PIPE) as proc:
         assert proc.stdout is not None
         print(type(proc.stdout))
         out = proc.stdout.readlines()
@@ -260,6 +260,7 @@ class Tile(Tile_parent):
                               (size/2-markx/2, 2), (size/2-markx/2, size-marky),
                               (2, size/2-marky/2), (size-markx-2, size/2-marky/2),
                               (size/2-markx/2, size/2-marky/2)]
+        self.possibleValues = []
 
         if self.value == ".":
             # self.value = ""
@@ -464,8 +465,6 @@ class NextMoveButton(Tile_parent):
             for j, tile in enumerate(row):
                 assert isinstance(tile, Tile)
                 block = self.getBlock(i, j)
-                if i == 5 and j == 5:
-                    print()
                 if tile.value == "" or True:
                     num = self.getNext(i,j,block)
                     if num != None:
@@ -479,10 +478,10 @@ class NextMoveButton(Tile_parent):
         self.update_sprite()
 
     def getNext (self, x, y, block):
-        # num = self.soleCandidate(x, y, block)
-        # if num != None:
-        #     print("sole Candidate:")
-        #     return num
+        num = self.soleCandidate(x, y, block)
+        if num != None:
+            print("sole Candidate:")
+            return num
         num = self.uniqueCandidate(x, y, block)
         if num != None:
             print("Unique Candidate:")
@@ -498,18 +497,16 @@ class NextMoveButton(Tile_parent):
 
     def uniqueCandidate(self, x, y, block):
         if x in (0,3,6) and y in (0,3,6):
-            if x == 6 and y == 0:
-                print(str(x) + str(y))
             possibleBlocks = [
                 self.getListPossibles(tile.index[0], tile.index[1], block) for tile in block]
             for i in range(1, 10, 1):
-                # count occurences
+                # count occurences of that number
                 poss = [True for j in possibleBlocks if str(i) in j]
                 num = poss.count(True)
-                if num == 1:
+                if num == 1:        # if there is exactly one occurence, find it
                     ind = 10
                     for posTile in possibleBlocks:
-                        if str(num) in posTile and posTile != []:
+                        if str(i) in posTile and posTile != []:
                             ind = possibleBlocks.index(posTile)
                             break
                     if ind < 10:
@@ -521,7 +518,6 @@ class NextMoveButton(Tile_parent):
         if (x,y) == uniqueAt[0]:
             assert len(uniqueAt) == 2
             return uniqueAt[1]
-
 
     def getBlock(self, x, y):
         block = []
@@ -551,17 +547,20 @@ class NextMoveButton(Tile_parent):
     def getListImpossibles(self, x, y, box):
         impossibleValues = []
         #row
-        t = self.getTileAtPos(x,y)
-        assert isinstance(t, Tile)
-        if t.value == "":
+        rootTile = self.getTileAtPos(x,y)
+        assert isinstance(rootTile, Tile)
+        if rootTile.value == "":
             for row in tiles:
                 for tile in row:
                     assert isinstance(tile, Tile)
                     if tile.index[0] == x or tile.index[1] == y or tile in box:
                         if tile.value != "" and tile.value not in impossibleValues:
                             impossibleValues.append(tile.value)
+                            rootTile.possibleValues = [x for x in [
+                                "1", "2", "3", "4", "5", "6", "7", "8", "9"] if x not in impossibleValues]                    
         else:
             impossibleValues = ["1", "2", "3", "4", "5", "6", "7", "8", "9"]
+            rootTile.possibleValues = []
         return impossibleValues
 
     def getListPossibles(self, x, y, box):
