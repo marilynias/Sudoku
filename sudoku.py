@@ -1,11 +1,12 @@
 import subprocess as sp
 import pygame
 import math
+from timeit import default_timer as timer
 from pygame import mouse, display, Surface, sprite, font, time
 
 
 def main():
-    global tiles, rows, blocks, columns, UIs, edit_mode, holding_mb1, dbcT, sudoku, solution
+    global tiles, rows, blocks, columns, UIs, edit_mode, holding_mb1, dbcT, sudoku, solution, tClock
     # Display
     pygame.init()
     display_game = display.set_mode((800,600))
@@ -15,6 +16,7 @@ def main():
     gameBoard.fill(pygame.Color("white"))
     running = True
     dbcClock = time.Clock()
+    tClock = time.Clock()
     dbcT = 1000
 
     # Sudoku
@@ -163,7 +165,7 @@ def build_Board(tiles:sprite.Group, cubesize:int):
 
 def get_sudoku():
     clean_out = []
-    with sp.Popen(["node", "qqwing-1.3.4\\qqwing-main-1.3.4.min.js", "--generate", "1", "--one-line", "--solution", "--difficulty", "simple"], stdout=sp.PIPE) as proc:
+    with sp.Popen(["node", "qqwing-1.3.4\\qqwing-main-1.3.4.min.js", "--generate", "1", "--one-line", "--solution", "--difficulty", "intermediate"], stdout=sp.PIPE) as proc:
         assert proc.stdout is not None
         print(type(proc.stdout))
         out = proc.stdout.readlines()
@@ -174,6 +176,8 @@ def get_sudoku():
 
     sudoku = clean_out[0]
     solution = clean_out[1]
+
+    # sudoku = '261..4.3..7.6...1..4......6386...1..195.4...2427.9....7125..9..6394.....8549.2...'
 
     # new_sudoku = []
     # new_solution = []
@@ -266,8 +270,8 @@ class Tile(Tile_parent):
         self.y = math.floor(position/9)
         super().__init__(
             size, (self.x*size, self.y*size), string, tfont)
-        self.row = columns[self.x]
-        self.column = rows[self.y]
+        self.row = columns[self.y]
+        self.column = rows[self.x]
         self.block = blocks[int(self.y/3)*3+int(self.x/3)]
         # print(str(int(self.y/3)*3+int(self.x/3)))
         self.row.add(self)
@@ -287,7 +291,8 @@ class Tile(Tile_parent):
                               (size/2-markx/2, 2), (size/2-markx/2, size-marky),
                               (2, size/2-marky/2), (size-markx-2, size/2-marky/2),
                               (size/2-markx/2, size/2-marky/2)]
-        self.possibleValues = []
+        self.possibleValues = ["1", "2", "3", "4", "5", "6", "7", "8", "9"]
+        self.pen_marks = self.possibleValues
 
         if self.value == ".":
             # self.value = ""
@@ -309,14 +314,22 @@ class Tile(Tile_parent):
 
     def select_all(self):
         # similar_tiles = [self]
-        for tile in tiles:
+        if self.bg != pygame.Color("white") and self.bg != pygame.Color("lightgrey"):
+            for tile in tiles:
                 assert isinstance(tile,Tile)
-                if self.value == "":
-                    for mark in self.pen_marks:
-                        if mark in tile.pen_marks:
-                            tile.select()
-                elif tile.value == self.value:
+                if tile.bg == self.bg:
                     tile.select()
+        elif self.value == "" and self.pen_marks!=[]:
+            for tile in tiles:
+                assert isinstance(tile,Tile)
+                for mark in self.pen_marks:
+                    if mark in tile.pen_marks:
+                        tile.select()
+        elif self.value != "":
+            for tile in tiles:
+                assert isinstance(tile, Tile)
+                if tile.value == self.value:
+                        tile.select()
         
 
 
@@ -487,128 +500,189 @@ class NextMoveButton(Tile_parent):
         
     def select(self):
         self.numFreeTiles = self.getNumFreeTiles()
-
-        while self.numFreeTiles > 0:
-
-            # get all possible values for each tile
-            for i, row in enumerate(rows):
-                for j, tile in enumerate(row):
-                    assert isinstance(tile, Tile)
-                    self.assignPossibleValues(i, j)
-
+        self.assignPossibleValues()
+        self.remove_candidates()        # assign possible values and renove candidates
+        # return
+        while self.numFreeTiles > 0:        # first go through
+            
+                # return
             # TODO: eliminate possible values 
-            # self.remove_candidates()
+            
             newNumFreeTiles = self.getNumFreeTiles()
             # check tiles for sole and unique Candidates
             num, tile = self.getNext()
             if tile != None:
-                tile.update_color(pygame.Color("yellow"))
+                # tile.update_color(pygame.Color("yellow"))
+                tile.clear()
                 tile.update_value(str(num))
+                pygame.display.update()
                 print("(" + str(tile.x+1) + ", " + str(tile.y+1) + "): " + str(num))
-                
+                self.assignPossibleValues()
                 self.numFreeTiles = newNumFreeTiles
                 # break
             else:
-                # self.update_sprite()
+                # if self.remove_candidates():
+                #     continue
                 for bttn in UIs.sprites():
                     if isinstance(bttn, CheckButton):
                         bttn.select()
                 break
                 
-                # return
+
+            
+            
                     
                     
     def remove_candidates(self):
-        for block in blocks:
-            for tile in block:
-                assert isinstance(tile, Tile)
-                # block = tile.block#             self.getBlock(c,r)
-
+        # build a list of the index of the tiles in a block that can have that number
+        # self.assignPossibleValues()
+        couldRemove = False
+        removing = True
+        while removing:
+            removing = False
+            for ib, block in enumerate(blocks):
                 for i in range(1,10):
-                    possibleBlockForVal = []
-                    for j, t in enumerate(tile.block):
-                        assert isinstance(t, Tile)
-                        if str(i) in t.possibleValues:
-                            possibleBlockForVal.append(j)
+                    possibleTileForVar = []
+                    for tile in block:
+                        assert isinstance(tile, Tile)
+                        if str(i) in tile.possibleValues:
+                            possibleTileForVar.append(tile)
+                    # see if all of them are in the same row/column
+                    if all(element.y == possibleTileForVar[0].y for element in possibleTileForVar) and len(possibleTileForVar) > 1:
+                        if len([j for j in possibleTileForVar[0].row if i in j.possibleValues]) == len(possibleTileForVar):
+                            continue
+                        #remove all instances of the possible values except for those in this box
+                        for t in possibleTileForVar[0].row:     
+                            if t not in possibleTileForVar:
+                                assert isinstance(t, Tile)
+                                if str(i) in t.possibleValues:
+                                    t.possibleValues.remove(str(i))
+                                    print(f"{i} only possible in Box {ib} row {possibleTileForVar[0].y}, therefore removing it from its row")
+                                    couldRemove = True
+                                    removing = True
+                                    t.update_sprite()
+                    if all(element.x == possibleTileForVar[0].x for element in possibleTileForVar) and len(possibleTileForVar) > 1:
+                        if len([j for j in possibleTileForVar[0].column if i in j.possibleValues]) == len(possibleTileForVar):
+                            continue
+
+                        # remove all instances of the possible values except for those in this box
+                        for t in possibleTileForVar[0].column:
+                            if t not in possibleTileForVar:
+                                assert isinstance(t, Tile)
+                                if str(i) in t.possibleValues:
+                                    t.possibleValues.remove(str(i))
+                                    print(
+                                        f"{i} only possible in Box {ib} column {possibleTileForVar[0].x}, therefore removing it from its column")
+                                    couldRemove = True
+                                    removing = True
+                                    t.update_sprite()
+        print("--------")
+        return couldRemove
 
     def getNext (self):
+        # num = None
+        # tile = None
+        # for i in range(5):
+        # self.assignPossibleValues()
+        before = timer()
         
-        # num, tile = self.soleCandidate()
-        # if num != None:
-        #     return num, tile
+        num, tile = self.soleCandidate()
+        t_sc =  timer() - before
+        if num != None:
+            print("Sole Candidate:")
+            return num, tile
 
+        # before = timer()
         num, tile = self.uniqueCandidate()
+        # middle = timer()
+        # num, tile = self.uniqueCandidate2()
+        # after = timer()
+        # print("old: ", round(middle-before, 6)*1000, " new: ", round(after-middle, 6)*1000)
         if num != None:
             print("Unique Candidate:")
-            # return num, tile
-        
+            return num, tile
         return num, tile
-
-        # num = self.soleCandidate(tile.x, tile.y)
-        # if num != None:
-        #     print("sole Candidate:")
-        #     return num
         
         
 
     def soleCandidate(self):
         for tile in tiles:
             assert isinstance(tile, Tile)
-            if tile.value == "" or True:
+            if tile.value == "":
                 assert isinstance(tile, Tile)
                 if len(tile.possibleValues) == 1:
-                    for i in range(1, 10, 1):
-                        if [str(i)] == tile.possibleValues:
-                            return i, tile
+                    return tile.possibleValues[0], tile
         return (None, None)
 
     def uniqueCandidate(self):
-        for block in blocks:
-            possibleBlocks = [t.possibleValues for t in block if isinstance(t, Tile)]
-            for i in range(1, 10, 1):
+        for i in range(1, 10):
+            for block in blocks:
                 # count occurences of that number
-                poss = [True for j in possibleBlocks if str(i) in j]
-                num = poss.count(True)
+                num = sum(1 for tile in block
+                          if isinstance(tile, Tile) and str(i) in tile.possibleValues)
                 if num == 1:        # if there is exactly one occurence, find it
-                    # ind = 10
-                    for t, tile in enumerate(block):
-                        if str(i) in possibleBlocks[t] and possibleBlocks[t] != []:
-                            # column = ind%3
-                            # row = math.floor(ind/3)
-                            # tile = getTileAtPos(column,row)
-                            assert isinstance(tile, Tile)
-                        # global uniqueAt
-                            return i, tile
-        return (None, None)
-        #                 break
-        # if (tile.x, tile.y) == uniqueAt[0]:
-        #     assert len(uniqueAt) == 2
-        #     return uniqueAt[1]
+                    for t in block:
+                        assert isinstance(t, Tile)
+                        if str(i) in t.possibleValues:
+                            return i, t
+            for row in rows:
+                # count occurences of that number
+                num = sum(1 for tile in row
+                          if isinstance(tile, Tile) and str(i) in tile.possibleValues)
+                if num == 1:        # if there is exactly one occurence, find it
+                    for t in row:
+                        assert isinstance(t, Tile)
+                        if str(i) in t.possibleValues:
+                            return i, t
 
-    def assignPossibleValues(self, x, y):
-        impossibleValues = []
-        #row
-        rootTile = getTileAtPos(x,y)
-        assert isinstance(rootTile, Tile)
-        if rootTile.value == "":
-            for tile in columns[x]:
-                assert isinstance(tile, Tile)
-                if tile.value != "" and tile.value not in impossibleValues:
-                    impossibleValues.append(tile.value)
-            for tile in rows[y]:
-                assert isinstance(tile, Tile)
-                if tile.value != "" and tile.value not in impossibleValues:
-                    impossibleValues.append(tile.value)
-            for tile in rootTile.block:
-                assert isinstance(tile, Tile)
-                if tile.value != "" and tile.value not in impossibleValues:
-                    impossibleValues.append(tile.value)
-                                            
-        else:
-            impossibleValues = ["1", "2", "3", "4", "5", "6", "7", "8", "9"]
-            rootTile.possibleValues = []
-        rootTile.possibleValues = [x for x in [
-            "1", "2", "3", "4", "5", "6", "7", "8", "9"] if x not in impossibleValues]
+            for column in columns:
+                # count occurences of that number
+                num = sum(1 for tile in column
+                          if isinstance(tile, Tile) and str(i) in tile.possibleValues)
+                if num == 1:        # if there is exactly one occurence, find it
+                    for t in column:
+                        assert isinstance(t, Tile)
+                        if str(i) in t.possibleValues:
+                            return i, t
+        return (None, None)
+        
+    def uniqueCandidate2(self):
+        for i in range(1, 10):
+            for block in blocks:
+                # count occurences of that number
+                num = sum(1 for tile in block
+                                        if isinstance(tile, Tile) and str(i) in tile.possibleValues)
+                if num == 1:        # if there is exactly one occurence, find it
+                    for t in block:
+                        assert isinstance(t, Tile)
+                        if str(i) in t.possibleValues:
+                            return i, t 
+        return (None, None)
+
+    def assignPossibleValues(self):
+        for rootTile in tiles:
+            assert isinstance(rootTile, Tile)
+            if rootTile.value == "":
+                for tile in columns[rootTile.y]:
+                    assert isinstance(tile, Tile)
+                    if tile.value != "" and tile.value in rootTile.possibleValues:
+                        rootTile.possibleValues.remove(tile.value)
+                        rootTile.pen_marks = rootTile.possibleValues
+                        rootTile.update_sprite()
+                for tile in rows[rootTile.x]:
+                    assert isinstance(tile, Tile)
+                    if tile.value != "" and tile.value in rootTile.possibleValues:
+                        rootTile.possibleValues.remove(tile.value)
+                        rootTile.pen_marks = rootTile.possibleValues
+                for tile in rootTile.block:
+                    assert isinstance(tile, Tile)
+                    if tile.value != "" and tile.value in rootTile.possibleValues:
+                        rootTile.possibleValues.remove(tile.value)
+                        rootTile.pen_marks = rootTile.possibleValues
+                rootTile.update_sprite()
+            elif rootTile.possibleValues != []:
+                rootTile.possibleValues = []
+                rootTile.pen_marks = rootTile.possibleValues
 
     def getNumFreeTiles(self):
         num = 0
