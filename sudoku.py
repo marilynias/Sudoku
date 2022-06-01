@@ -1,3 +1,4 @@
+from operator import and_
 import subprocess as sp
 import pygame
 import math
@@ -177,6 +178,9 @@ def get_sudoku():
             cs = sudoku.decode('UTF-8')
             clean_out.append(cs[:-1])
 
+        # clean_out[0] = '.........9.46.7....768.41..3.97.1.8.7.8...3.1.513.87.2..75.261...54.32.8.........'
+        # clean_out[1] = "583219467914637825276854139349721586728965341651348792497582613165493278832176954"
+        #double: '.........9.46.7....768.41..3.97.1.8.7.8...3.1.513.87.2..75.261...54.32.8.........'
         sudoku = clean_out[0].replace(".", "0")
         # assert isinstance(sudoku, str)
         
@@ -184,7 +188,7 @@ def get_sudoku():
     
     else:
         print("empty output")
-        sudoku = '..6..9......3.2..........1..821..7..679.2...81...6.3....84..2..7....8.3.......4.6'
+        sudoku = '.........9.46.7....768.41..3.97.1.8.7.8...3.1.513.87.2..75.261...54.32.8.........'
         solution = '836719524451382679297645813382194765679523148145867392918436257764258931523971486'
 
     return sudoku, solution
@@ -346,8 +350,8 @@ class Tile(Tile_parent):
         self.image.blit(self.txt, (self.rect.size[0]/2 - self.txt.get_size()[0]/2,
                                    self.rect.size[1]/2 - self.txt.get_size()[1]/2))
 
-    def update_value(self, val: str):
-        val = int(val)
+    def update_value(self, value: str):
+        val = int(value)
         if val is not None and not self._locked:
             if edit_mode == 0:
                 if self.value == val:
@@ -594,7 +598,9 @@ class RemCandButton(Tile_parent):
     def remove_candidates(self):
         if self.lockedSingle():       # assign possible values and renove candidates
             return True
-        elif self.nakedPair():
+        elif self.nakedSubset():
+            return True
+        if self.hiddenSubset():
             return True
         else:
             return False
@@ -648,7 +654,7 @@ class RemCandButton(Tile_parent):
         # print("--------")
         return couldRemove
 
-    def nakedPair(self):
+    def nakedSubset(self):
         # wenn in x feldern in einer reihe/spalte/block x mögliche zahlen enthalten, können diese zahlen aus den restlichen felderd der reihe/spalte/block gelöscht werden
         couldRemove = False
         for tile in tiles:
@@ -688,6 +694,41 @@ class RemCandButton(Tile_parent):
                             #     print(f" {t.x}/{t.y}")
                             return couldRemove
 
+    def hiddenSubset(self):
+        couldRemove = False
+        for group in (blocks, rows, columns):
+            for subset in group:        # subset = specific row/column/block
+                allTileValues = []      # [[tiles containing 1], [tiles containing 2], [etc]]
+                for i in range(1,10):
+                    allTileValues.append([tile for tile in subset if isinstance(tile, Tile) and i in tile.possibleValues])
+                for i, numberList in enumerate(allTileValues):
+                    if len(numberList) <2:
+                        continue
+                    # enter lists of tiles, which numbers can be in the same tiles
+                    # ex: of two tiles have 6 and 2 tiles have 7, see if they are the same
+                    # sametiles =  [compareList for j, compareList in enumerate(allTileValues) if i!=j and numberList == compareList]
+                    # Hidden Pair:
+                    for j, compareList in enumerate(allTileValues):     #
+                        if i!=j and numberList == compareList and len(compareList) == 2:
+                            # if len(sametiles) > 1:
+                            
+                            for tile in compareList:
+                                assert isinstance(tile,Tile)
+                                if any(n not in (i+1,j+1) for n in tile.possibleValues):
+                                        couldRemove = True
+                                        print(f"{i+1}, {j+1}, prev:{tile.possibleValues}")
+                                        for n in tile.possibleValues:
+                                            if n not in (i+1,j+1):
+                                                tile.possibleValues.remove(n)
+                                        print(f"{tile.possibleValues} at {tile.x+1}, {tile.y+1}")
+                                tile.update_sprite()
+                            
+
+
+                    
+        return couldRemove
+
+
 class FillCandButton(Tile_parent):
     def __init__(self, size, position, string, font) -> None:
         super().__init__(size, position, string, font)
@@ -721,7 +762,7 @@ class fillValButton(Tile_parent):
         
     def select(self):
         num, tile = self.getNext()
-        if tile != None:
+        if tile != None and num != None:
             # tile.update_color(pygame.Color("yellow"))
             tile.clear()
             tile.update_value(str(num))
