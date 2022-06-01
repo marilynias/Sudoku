@@ -3,6 +3,8 @@ import pygame
 import math
 from timeit import default_timer as timer
 from pygame import mouse, display, Surface, sprite, font, time
+import os
+
 
 
 def main():
@@ -18,6 +20,7 @@ def main():
     dbcClock = time.Clock()
     tClock = time.Clock()
     dbcT = 1000
+    
 
     # Sudoku
     sudoku, solution = get_sudoku()
@@ -29,7 +32,7 @@ def main():
     tiles = sprite.Group()
     rows = [sprite.Group() for row in range(9)]
     columns = [sprite.Group() for colum in range(9)]
-    blocks = [sprite.Group() for colum in range(9)]
+    blocks = [sprite.Group() for block in range(9)]
     UIs = sprite.Group()
     # 0 = write full size(tile is that number), 1 = pencil mark (tile can be that number), 2 = strong mark(tile has to be one of these numbers)
     edit_mode = 0  
@@ -137,25 +140,19 @@ def build_Board(tiles:sprite.Group, cubesize:int):
             tiles.add(
                 Tile(cubesize, ind, sudoku[ind], tile_font))
 
-    # for tile in tiles:
-    #     assert isinstance(tile, Tile)
-    #     # block = []
-    #     blockpos = [math.floor(tile.x/3)*3, math.floor(tile.y/3)*3]
-
-    #     for i in range(3):
-    #         # row = []
-    #         for j in range(3):
-    #             tile.block.append(getTileAtPos(blockpos[0]+i, blockpos[1]+j))
-    #         # block.append(row)
 
     # add UI
     ui_x = mon.current_w - cubesize - 10
     size_margin = cubesize+20
-    UIs.add(UIButton(cubesize, (ui_x, 10), "Mark", ui_font, 1))
-    UIs.add(UIButton(cubesize, (ui_x, size_margin), "SMark", ui_font, 2))
-    UIs.add(ClearButton(cubesize, (ui_x, size_margin*2), "clear", ui_font))
-    UIs.add(CheckButton(cubesize, (ui_x, size_margin*3), "Check", ui_font))
-    UIs.add(NextMoveButton(cubesize, (ui_x, size_margin*4), "Next", ui_font))
+    UIs.add(UIButton(cubesize, (ui_x - size_margin*2, 10), "Mark", ui_font, 1))
+    UIs.add(UIButton(cubesize, (ui_x - size_margin*2, size_margin*1), "SMark", ui_font, 2))
+    UIs.add(ClearButton(cubesize, (ui_x - size_margin*2, size_margin*2), "clear", ui_font))
+    UIs.add(CheckButton(cubesize, (ui_x - size_margin*2, size_margin*3), "Check", ui_font))
+
+    UIs.add(FillCandButton(cubesize, (ui_x, 10), "FillCand", ui_font))    
+    UIs.add(fillValButton(cubesize, (ui_x, size_margin*1), "FillVal", ui_font))
+    UIs.add(RemCandButton(cubesize, (ui_x, size_margin*2), "RemoveCand", ui_font))
+    UIs.add(SolveButton(cubesize, (ui_x, size_margin*3), "Solve", ui_font))
 
 
     UIs.add(ColorButton(cubesize, (ui_x - size_margin, 10), "", ui_font, pygame.Color("grey")))
@@ -165,45 +162,28 @@ def build_Board(tiles:sprite.Group, cubesize:int):
 
 def get_sudoku():
     clean_out = []
-    with sp.Popen(["node", "qqwing-1.3.4\\qqwing-main-1.3.4.min.js", "--generate", "1", "--one-line", "--solution", "--difficulty", "intermediate"], stdout=sp.PIPE) as proc:
+    filePath = os.path.dirname(os.path.abspath(__file__))
+    # difficulties: simple,easy, intermediate, or expert
+    with sp.Popen(["node", os.path.join(filePath, "qqwing-1.3.4", "qqwing-main-1.3.4.js") , "--generate", "1", "--one-line", "--solution", "--difficulty", "expert"], stdout=sp.PIPE) as proc:
         assert proc.stdout is not None
         print(type(proc.stdout))
         out = proc.stdout.readlines()
 
-    for sudoku in out:
-        cs = sudoku.decode('UTF-8')
-        clean_out.append(cs[:-1])
+    if len(out) > 0:
+        for sudoku in out:
+            cs = sudoku.decode('UTF-8')
+            clean_out.append(cs[:-1])
 
-    sudoku = clean_out[0]
-    solution = clean_out[1]
+        sudoku = clean_out[0].replace(".", "0")
+        # assert isinstance(sudoku, str)
+        
+        solution = clean_out[1]
+    
+    else:
+        print("empty output")
+        sudoku = '..6..9......3.2..........1..821..7..679.2...81...6.3....84..2..7....8.3.......4.6'
+        solution = '836719524451382679297645813382194765679523148145867392918436257764258931523971486'
 
-    # sudoku = '261..4.3..7.6...1..4......6386...1..195.4...2427.9....7125..9..6394.....8549.2...'
-
-    # new_sudoku = []
-    # new_solution = []
-
-    # sud_line = []
-    # sol_line = []
-    # for i in range(len(sudoku)):
-    #     sud_line.append(sudoku[i])
-    #     sol_line.append(solution[i])
-    #     if i%9 == 8:
-    #         new_sudoku.append(sud_line)
-    #         new_solution.append(sol_line)
-    #         sud_line = []
-    #         sol_line = []
-
-    # new_sudoku = [  [".",".","1",  ".",".",".",  ".",".","."],
-    #                 [".",".",".",  ".",".",".",  ".",".","."],
-    #                 [".",".",".",  ".",".",".",  ".",".","."],
-
-    #                 [".",".",".",  ".",".",".",  ".",".","."],
-    #                 [".","1",".",  ".",".",".",  ".",".","."],
-    #                 [".",".",".",  ".",".",".",  ".",".","."],
-
-    #                 ["5",".",".",  ".",".",".",  ".",".","."],
-    #                 [".",".",".",  ".",".",".",  ".",".","."],
-    #                 [".",".",".",  ".",".","1",  ".",".","."]]
     return sudoku, solution
 
 def draw_lines(gameBoard, cubesize):
@@ -234,10 +214,10 @@ class Tile_parent(sprite.Sprite):
         sprite.Sprite.__init__(self)
         self.rect = pygame.Rect(position, pygame.Vector2(size, size))
         self.bg = pygame.Color("white")
-        self.value = string
+        self.title = string
         self.txtfont = font
         self._txt_pos = (0, 0)
-        self.txt = self.txtfont.render(self.value, True, (0, 0, 0))
+        self.txt = self.txtfont.render(self.title, True, (0, 0, 0))
         self.selected = False
         self._locked = False
         self.image = Surface(self.rect.size)
@@ -260,14 +240,15 @@ class Tile_parent(sprite.Sprite):
         self.image.blit(self.txt, self._txt_pos)
 
     def update_value(self, val:str):
-        self.value = val
-        self.txt = self.txtfont.render(self.value, True, (0, 0, 0))
+        self.title = val
+        self.txt = self.txtfont.render(self.title, True, (0, 0, 0))
         self.update_sprite()
 
 class Tile(Tile_parent):
     def __init__(self, size:int, position:int, string:str, tfont: font.Font) -> None:
         self.x = position%9
         self.y = math.floor(position/9)
+
         super().__init__(
             size, (self.x*size, self.y*size), string, tfont)
         self.row = columns[self.y]
@@ -277,8 +258,11 @@ class Tile(Tile_parent):
         self.row.add(self)
         self.column.add(self)
         self.block.add(self)
+
         self._penmark_font = font.SysFont('Arial', math.floor(size/4))
         self._spenmark_font = font.SysFont('Arial', math.floor(size/3))
+
+        self.value = int(string)
         self.pen_marks = []
         self.spen_marks = []
         self.index = position
@@ -291,19 +275,21 @@ class Tile(Tile_parent):
                               (size/2-markx/2, 2), (size/2-markx/2, size-marky),
                               (2, size/2-marky/2), (size-markx-2, size/2-marky/2),
                               (size/2-markx/2, size/2-marky/2)]
-        self.possibleValues = ["1", "2", "3", "4", "5", "6", "7", "8", "9"]
-        self.pen_marks = self.possibleValues
-
-        if self.value == ".":
-            # self.value = ""
+        
+        if self.value == 0:
+            # self.title = ""
+            self.possibleValues = [i for i in range(1,10)]
             self._locked = False
             self.bg = pygame.Color("white")
-            self.update_value("")
+            self.update_value(0)
         else:
-            # self.value = string
+            # self.title = string
+            self.possibleValues = []
             self._locked = True
             self.bg = pygame.Color("lightgrey")
             self.update_sprite()
+
+        self.pen_marks = self.possibleValues
 
 
     def select(self):
@@ -319,13 +305,13 @@ class Tile(Tile_parent):
                 assert isinstance(tile,Tile)
                 if tile.bg == self.bg:
                     tile.select()
-        elif self.value == "" and self.pen_marks!=[]:
+        elif self.value == 0 and self.pen_marks!=[]:
             for tile in tiles:
                 assert isinstance(tile,Tile)
                 for mark in self.pen_marks:
                     if mark in tile.pen_marks:
                         tile.select()
-        elif self.value != "":
+        elif self.value != 0:
             for tile in tiles:
                 assert isinstance(tile, Tile)
                 if tile.value == self.value:
@@ -348,9 +334,10 @@ class Tile(Tile_parent):
             pygame.draw.rect(self.image, pygame.Color("red"),
                              self.image.get_rect().move(1, 1).inflate(-1,-1), 3)
 
-        if self.value == "":
+        if self.value == 0:
+            self.txt = self.txtfont.render("", True, (0, 0, 0))
             for i in range(len(self.pen_marks)):
-                marktxt = self._penmark_font.render(self.pen_marks[i], True, (0, 0, 0))
+                marktxt = self._penmark_font.render(str(self.pen_marks[i]), True, (0, 0, 0))
                 self.image.blit(marktxt, self._pen_positions[i] )
 
             sPenStr = ""
@@ -359,35 +346,39 @@ class Tile(Tile_parent):
             smarktxt = self._penmark_font.render(sPenStr, True, (0, 0, 0))
             self.image.blit(smarktxt, (self.rect.width/2 - smarktxt.get_width()/2, self.rect.height/2 - smarktxt.get_height()/2))
 
-        self.txt = self.txtfont.render(self.value, True, (0, 0, 0))
+        else:
+            self.txt = self.txtfont.render(str(self.value), True, (0, 0, 0))
         self.image.blit(self.txt, (self.rect.size[0]/2 - self.txt.get_size()[0]/2,
                                    self.rect.size[1]/2 - self.txt.get_size()[1]/2))
 
     def update_value(self, val: str):
+        val = int(val)
         if val is not None and not self._locked:
             if edit_mode == 0:
                 if self.value == val:
-                    self.value = ""
-                else:
+                    self.value = 0
+                elif val in range(0,10):
                     self.value = val
-                    global sudoku
-                    if val != "":
-                        # sudoku[self.y*9+self.x] = val
-                        
-                        sudoku = sudoku[:self.y*9+self.x] + \
-                            val + sudoku[self.y*9+self.x + 1:]
-                    else:
-                        sudoku = sudoku[:self.y*9+self.x] + \
-                            "." + sudoku[self.y*9+self.x + 1:]
-                    pass
+
+                global sudoku
+                if val != 0:
+                    # sudoku[self.y*9+self.x] = val
+                    
+                    sudoku = sudoku[:self.y*9+self.x] + \
+                        str(val) + sudoku[self.y*9+self.x + 1:]
+                else:
+                    sudoku = sudoku[:self.y*9+self.x] + \
+                        "0" + sudoku[self.y*9+self.x + 1:]
+                pass
                 
-            elif edit_mode == 1 and self.value == "":
+            elif edit_mode == 1 and self.value == 0:
                 if val in self.pen_marks:
                     self.pen_marks.remove(val)
                 else:
                     self.pen_marks.append(val)
                 self.pen_marks = sorted(self.pen_marks)
-            elif edit_mode == 2 and self.value == "":
+
+            elif edit_mode == 2 and self.value == 0:
                 if val in self.spen_marks:
                     self.spen_marks.remove(val)
                 else:
@@ -412,7 +403,8 @@ class Tile(Tile_parent):
         if not self._locked:
             self.pen_marks = []
             self.spen_marks = []
-            self.value = ""
+            self.possibleValues = []
+            self.value = 0
             self.update_sprite()
 
 class UIButton(Tile_parent):
@@ -483,7 +475,7 @@ class CheckButton(Tile_parent):
         for i, tile in enumerate(tiles):
             assert isinstance(tile, Tile)
             if sudoku[i] != solution[i]:
-                if tile.value == "":
+                if tile.value == 0:
                     tile.update_color(pygame.Color("white"), True)
                 else:
                     tile.update_color(pygame.Color("red"), True)
@@ -492,16 +484,26 @@ class CheckButton(Tile_parent):
                 tile.update_color(pygame.Color("green"), True)
         self.update_sprite()
 
-class NextMoveButton(Tile_parent):
+class SolveButton(Tile_parent):
     def __init__(self, size, position, string, font) -> None:
         super().__init__(size, position, string, font)
         self.update_sprite()
         self.numFreeTiles = 0
-        
+
+        for bttn in UIs.sprites():
+            if isinstance(bttn, CheckButton):
+                self.checkBttn = bttn
+            elif isinstance(bttn, RemCandButton):
+                self.removeCandBttn = bttn
+            elif isinstance(bttn, fillValButton):
+                self.fillValBttn = bttn
+            elif isinstance(bttn, FillCandButton):
+                self.fillcandBttn = bttn
     def select(self):
         self.numFreeTiles = self.getNumFreeTiles()
-        self.assignPossibleValues()
-        self.remove_candidates()        # assign possible values and renove candidates
+        self.fillcandBttn.assignPossibleValues ()
+        #assignPossibleValues()
+        # self.remove_candidates()        # assign possible values and renove candidates
         # return
         while self.numFreeTiles > 0:        # first go through
             
@@ -509,30 +511,28 @@ class NextMoveButton(Tile_parent):
             # TODO: eliminate possible values 
             
             newNumFreeTiles = self.getNumFreeTiles()
-            # check tiles for sole and unique Candidates
-            num, tile = self.getNext()
-            if tile != None:
-                # tile.update_color(pygame.Color("yellow"))
-                tile.clear()
-                tile.update_value(str(num))
-                pygame.display.update()
-                print("(" + str(tile.x+1) + ", " + str(tile.y+1) + "): " + str(num))
-                self.assignPossibleValues()
+            if self.fillValBttn.select():
                 self.numFreeTiles = newNumFreeTiles
+            # check tiles for sole and unique Candidates
+            # num, tile = self.fillValBttn.select()
+            # if tile != None:
+            #     # tile.update_color(pygame.Color("yellow"))
+            #     tile.clear()
+            #     tile.update_value(str(num))
+            #     pygame.display.update()
+            #     print("(" + str(tile.x+1) + ", " + str(tile.y+1) + "): " + str(num))
+            #     # self.assignPossibleValues()
+            #     self.numFreeTiles = newNumFreeTiles
                 # break
             else:
+                if self.removeCandBttn.remove_candidates():
+                    continue
                 # if self.remove_candidates():
                 #     continue
-                for bttn in UIs.sprites():
-                    if isinstance(bttn, CheckButton):
-                        bttn.select()
-                break
-                
-
-            
-            
-                    
-                    
+                else:
+                    self.checkBttn.select()
+                    break
+                             
     def remove_candidates(self):
         # build a list of the index of the tiles in a block that can have that number
         # self.assignPossibleValues()
@@ -545,7 +545,7 @@ class NextMoveButton(Tile_parent):
                     possibleTileForVar = []
                     for tile in block:
                         assert isinstance(tile, Tile)
-                        if str(i) in tile.possibleValues:
+                        if i in tile.possibleValues:
                             possibleTileForVar.append(tile)
                     # see if all of them are in the same row/column
                     if all(element.y == possibleTileForVar[0].y for element in possibleTileForVar) and len(possibleTileForVar) > 1:
@@ -555,12 +555,13 @@ class NextMoveButton(Tile_parent):
                         for t in possibleTileForVar[0].row:     
                             if t not in possibleTileForVar:
                                 assert isinstance(t, Tile)
-                                if str(i) in t.possibleValues:
-                                    t.possibleValues.remove(str(i))
+                                if i in t.possibleValues:
+                                    t.possibleValues.remove(i)
                                     print(f"{i} only possible in Box {ib} row {possibleTileForVar[0].y}, therefore removing it from its row")
                                     couldRemove = True
                                     removing = True
                                     t.update_sprite()
+                                    
                     if all(element.x == possibleTileForVar[0].x for element in possibleTileForVar) and len(possibleTileForVar) > 1:
                         if len([j for j in possibleTileForVar[0].column if i in j.possibleValues]) == len(possibleTileForVar):
                             continue
@@ -569,8 +570,8 @@ class NextMoveButton(Tile_parent):
                         for t in possibleTileForVar[0].column:
                             if t not in possibleTileForVar:
                                 assert isinstance(t, Tile)
-                                if str(i) in t.possibleValues:
-                                    t.possibleValues.remove(str(i))
+                                if i in t.possibleValues:
+                                    t.possibleValues.remove(i)
                                     print(
                                         f"{i} only possible in Box {ib} column {possibleTileForVar[0].x}, therefore removing it from its column")
                                     couldRemove = True
@@ -578,38 +579,199 @@ class NextMoveButton(Tile_parent):
                                     t.update_sprite()
         print("--------")
         return couldRemove
+    def getNumFreeTiles(self):
+        num = 0
+        for tile in tiles:
+            assert isinstance(tile, Tile)
+            if tile.value == 0:
+                num+=1
+        return num
 
-    def getNext (self):
-        # num = None
-        # tile = None
-        # for i in range(5):
+class RemCandButton(Tile_parent):
+    def __init__(self, size, position, string, font) -> None:
+        super().__init__(size, position, string, font)
+        self.update_sprite()
+        self.numFreeTiles = 0
+        
+    def select(self):
+        # self.assignPossibleValues()
+        if self.remove_candidates():
+            pass
+        else:
+            print("no more")
+                             
+    def remove_candidates(self):
+        if self.lockedSingle():       # assign possible values and renove candidates
+            return True
+        elif self.nakedPair():
+            return True
+        else:
+            return False
+
+    def lockedSingle(self):
+        # build a list of the index of the tiles in a block that can have that number
+        # self.assignPossibleValues()
+        couldRemove = False
+        # removing = True
+        # while removing:
+        #     removing = False
+        for ib, block in enumerate(blocks):
+            for i in range(1,10):
+                possibleTileForVar = []
+                for tile in block:
+                    assert isinstance(tile, Tile)
+                    if i in tile.possibleValues:
+                        possibleTileForVar.append(tile)
+                # see if all of them are in the same row/column
+                if all(element.y == possibleTileForVar[0].y for element in possibleTileForVar) and len(possibleTileForVar) > 1:
+                    if len([j for j in possibleTileForVar[0].row if i in j.possibleValues]) == len(possibleTileForVar):
+                        continue
+                    #remove all instances of the possible values except for those in this box
+                    print(f"{i} only possible in Box {ib} row {possibleTileForVar[0].y}, therefore removing it from its row")
+                    for t in possibleTileForVar[0].row:     
+                        if t not in possibleTileForVar:
+                            assert isinstance(t, Tile)
+                            if i in t.possibleValues:
+                                t.possibleValues.remove(i)
+                                
+                                couldRemove = True
+                                removing = True
+                                t.update_sprite()
+                    return couldRemove
+                                
+                if all(element.x == possibleTileForVar[0].x for element in possibleTileForVar) and len(possibleTileForVar) > 1:
+                        if len([j for j in possibleTileForVar[0].column if i in j.possibleValues]) == len(possibleTileForVar):
+                            continue
+                        
+                        print(f"{i} only possible in Box {ib} column {possibleTileForVar[0].x}, therefore removing it from its column")
+                        # remove all instances of the possible values except for those in this box
+                        for t in possibleTileForVar[0].column:
+                            assert isinstance(t, Tile)
+                            if t not in possibleTileForVar and i in t.possibleValues:
+                                    t.possibleValues.remove(i)
+                                    
+                                    couldRemove = True
+                                    removing = True
+                                    t.update_sprite()
+                        return couldRemove
+        # print("--------")
+        return couldRemove
+
+    def nakedPair(self):
+        # wenn in x feldern in einer reihe/spalte/block x mögliche zahlen enthalten, können diese zahlen aus den restlichen felderd der reihe/spalte/block gelöscht werden
+        couldRemove = False
+        for tile in tiles:
+            assert isinstance(tile, Tile)
+            if tile.value == 0:# and len(tile.possibleValues) <= 4:
+                # length = len(tile.possibleValues)
+                for subset in (tile.block, tile.row, tile.column):
+                    sameTiles = [tile]
+                    for tileCheckAgainst in subset:
+                        assert isinstance(tileCheckAgainst, Tile)
+                        if tileCheckAgainst.value == 0 and tile != tileCheckAgainst:
+                            # if all Values in the other tile are present in the original tile. Original Tile has to be the longer list
+                            if all(val in tile.possibleValues for val in tileCheckAgainst.possibleValues):
+                                sameTiles.append(tileCheckAgainst)
+                
+                    if len(sameTiles) == len(tile.possibleValues):
+                        for tileRemVal in subset:
+                            if tileRemVal in sameTiles:
+                                continue
+                            assert isinstance(tileRemVal, Tile)
+                            for val in tileRemVal.possibleValues:
+                                if val in tile.possibleValues:
+                                    print(f"removing {val} at {tileRemVal.x}/{tileRemVal.y} ")
+                                    tileRemVal.possibleValues.remove(val)
+                                    tileRemVal.update_sprite()
+                                    couldRemove = True
+                        if couldRemove:
+                            print(f"naked subset: {tile.possibleValues} in:")
+                            if subset == tile.block:
+                                print(f"at block {(tile.y * 9) + tile.x}")
+                            elif subset == tile.row:
+                                print(f"at row {tile.y}")
+                            elif subset == tile.column:
+                                print(f"at column {tile.x}")
+
+                            # for t in sameTiles:
+                            #     print(f" {t.x}/{t.y}")
+                            return couldRemove
+
+class FillCandButton(Tile_parent):
+    def __init__(self, size, position, string, font) -> None:
+        super().__init__(size, position, string, font)
+        self.update_sprite()
+        self.numFreeTiles = 0
+        
+    def select(self):
+        # self.assignPossibleValues()
+        self.assignPossibleValues()
+
+    def assignPossibleValues(self):
+        for rootTile in tiles:
+            assert isinstance(rootTile, Tile)
+            # rootTile.possibleValues = []
+            if rootTile.value == 0:
+                for subset in (rootTile.block, rootTile.row, rootTile.column):
+                    for tile in subset:
+                        assert isinstance(tile, Tile)
+                        if tile.value != 0 and tile.value in rootTile.possibleValues:
+                            rootTile.possibleValues.remove(tile.value)
+                            rootTile.pen_marks = rootTile.possibleValues
+            else:
+                rootTile.possibleValues = []
+                rootTile.pen_marks = []
+
+                # for tile in tile.row:
+                #     assert isinstance(tile, Tile)
+                #     if tile.value != 0 and tile.value in rootTile.possibleValues:
+                #         rootTile.possibleValues.remove(tile.value)
+                #         rootTile.pen_marks = rootTile.possibleValues
+
+                # for tile in rootTile.block:
+                #     assert isinstance(tile, Tile)
+                #     if tile.value != 0 and tile.value in rootTile.possibleValues:
+                #         rootTile.possibleValues.remove(tile.value)
+                #         rootTile.pen_marks = rootTile.possibleValues
+            rootTile.update_sprite()
+
+
+class fillValButton(Tile_parent):
+    def __init__(self, size, position, string, font) -> None:
+        super().__init__(size, position, string, font)
+        self.update_sprite()
+        self.numFreeTiles = 0
+        
+    def select(self):
+        num, tile = self.getNext()
+        if tile != None:
+            # tile.update_color(pygame.Color("yellow"))
+            tile.clear()
+            tile.update_value(str(num))
+            self.removeCand(tile, num)
+            print("(" + str(tile.x+1) + ", " + str(tile.y+1) + "): " + str(num))
+            return True
+        else:
+            return False
         # self.assignPossibleValues()
         before = timer()
         
+    def getNext(self):
         num, tile = self.soleCandidate()
-        t_sc =  timer() - before
         if num != None:
             print("Sole Candidate:")
             return num, tile
 
-        # before = timer()
         num, tile = self.uniqueCandidate()
-        # middle = timer()
-        # num, tile = self.uniqueCandidate2()
-        # after = timer()
-        # print("old: ", round(middle-before, 6)*1000, " new: ", round(after-middle, 6)*1000)
         if num != None:
             print("Unique Candidate:")
             return num, tile
         return num, tile
-        
-        
 
     def soleCandidate(self):
         for tile in tiles:
             assert isinstance(tile, Tile)
-            if tile.value == "":
-                assert isinstance(tile, Tile)
+            if tile.value == 0:
                 if len(tile.possibleValues) == 1:
                     return tile.possibleValues[0], tile
         return (None, None)
@@ -619,78 +781,50 @@ class NextMoveButton(Tile_parent):
             for block in blocks:
                 # count occurences of that number
                 num = sum(1 for tile in block
-                          if isinstance(tile, Tile) and str(i) in tile.possibleValues)
+                          if isinstance(tile, Tile) and i in tile.possibleValues)
                 if num == 1:        # if there is exactly one occurence, find it
                     for t in block:
                         assert isinstance(t, Tile)
-                        if str(i) in t.possibleValues:
+                        if i in t.possibleValues:
                             return i, t
+            
             for row in rows:
                 # count occurences of that number
                 num = sum(1 for tile in row
-                          if isinstance(tile, Tile) and str(i) in tile.possibleValues)
+                          if isinstance(tile, Tile) and i in tile.possibleValues)
                 if num == 1:        # if there is exactly one occurence, find it
                     for t in row:
                         assert isinstance(t, Tile)
-                        if str(i) in t.possibleValues:
+                        if i in t.possibleValues:
                             return i, t
 
             for column in columns:
                 # count occurences of that number
                 num = sum(1 for tile in column
-                          if isinstance(tile, Tile) and str(i) in tile.possibleValues)
+                          if isinstance(tile, Tile) and i in tile.possibleValues)
                 if num == 1:        # if there is exactly one occurence, find it
                     for t in column:
                         assert isinstance(t, Tile)
-                        if str(i) in t.possibleValues:
+                        if i in t.possibleValues:
                             return i, t
         return (None, None)
-        
-    def uniqueCandidate2(self):
-        for i in range(1, 10):
-            for block in blocks:
-                # count occurences of that number
-                num = sum(1 for tile in block
-                                        if isinstance(tile, Tile) and str(i) in tile.possibleValues)
-                if num == 1:        # if there is exactly one occurence, find it
-                    for t in block:
-                        assert isinstance(t, Tile)
-                        if str(i) in t.possibleValues:
-                            return i, t 
-        return (None, None)
 
-    def assignPossibleValues(self):
-        for rootTile in tiles:
-            assert isinstance(rootTile, Tile)
-            if rootTile.value == "":
-                for tile in columns[rootTile.y]:
-                    assert isinstance(tile, Tile)
-                    if tile.value != "" and tile.value in rootTile.possibleValues:
-                        rootTile.possibleValues.remove(tile.value)
-                        rootTile.pen_marks = rootTile.possibleValues
-                        rootTile.update_sprite()
-                for tile in rows[rootTile.x]:
-                    assert isinstance(tile, Tile)
-                    if tile.value != "" and tile.value in rootTile.possibleValues:
-                        rootTile.possibleValues.remove(tile.value)
-                        rootTile.pen_marks = rootTile.possibleValues
-                for tile in rootTile.block:
-                    assert isinstance(tile, Tile)
-                    if tile.value != "" and tile.value in rootTile.possibleValues:
-                        rootTile.possibleValues.remove(tile.value)
-                        rootTile.pen_marks = rootTile.possibleValues
-                rootTile.update_sprite()
-            elif rootTile.possibleValues != []:
-                rootTile.possibleValues = []
-                rootTile.pen_marks = rootTile.possibleValues
-
-    def getNumFreeTiles(self):
-        num = 0
-        for tile in tiles:
-            assert isinstance(tile, Tile)
-            if tile.value == "":
-                num+=1
-        return num
+    def removeCand(self, tile:Tile, value:int):
+        for t in tile.block:
+            assert isinstance(t, Tile)
+            if value in t.possibleValues:
+                t.possibleValues.remove(value)
+                t.update_sprite()
+        for t in tile.row:
+            assert isinstance(t, Tile)
+            if value in t.possibleValues:
+                t.possibleValues.remove(value)
+                t.update_sprite()
+        for t in tile.column:
+            assert isinstance(t, Tile)
+            if value in t.possibleValues:
+                t.possibleValues.remove(value)
+                t.update_sprite()
 
 
 if __name__ == "__main__":
