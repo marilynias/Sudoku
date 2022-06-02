@@ -1,4 +1,3 @@
-from operator import and_
 import subprocess as sp
 import pygame
 import math
@@ -9,7 +8,7 @@ import os
 
 
 def main():
-    global tiles, rows, blocks, columns, UIs, edit_mode, holding_mb1, dbcT, sudoku, solution, tClock
+    global edit_mode, holding_mb1, dbcT, sudoku, solution, tClock
     # Display
     pygame.init()
     display_game = display.set_mode((800,600))
@@ -30,16 +29,12 @@ def main():
     #board
     boardLocation = (20,20)
     
-    tiles = sprite.Group()
-    rows = [sprite.Group() for row in range(9)]
-    columns = [sprite.Group() for colum in range(9)]
-    blocks = [sprite.Group() for block in range(9)]
-    UIs = sprite.Group()
+    
     # 0 = write full size(tile is that number), 1 = pencil mark (tile can be that number), 2 = strong mark(tile has to be one of these numbers)
     edit_mode = 0  
     holding_mb1 = False
     # holding_txt = font.SysFont('Arial', 10).render("holding", True,pygame.Color("red"))
-    build_Board(tiles, cubesize)
+    build_Board(cubesize)
 
     
 
@@ -130,8 +125,14 @@ def select_ui_at(position:tuple):
             ui.select()
             return
 
-def build_Board(tiles:sprite.Group, cubesize:int):
-    
+def build_Board(cubesize:int):
+    global tiles, rows, blocks, columns, UIs
+    tiles = sprite.Group()
+    rows = [sprite.Group() for row in range(9)]
+    columns = [sprite.Group() for colum in range(9)]
+    blocks = [sprite.Group() for block in range(9)]
+    UIs = sprite.Group()
+
     tile_font = font.SysFont('Arial', math.floor(cubesize/2))
     ui_font = font.SysFont('Arial', math.floor(cubesize/4))
     mon = display.Info()
@@ -596,14 +597,20 @@ class RemCandButton(Tile_parent):
             print("no more")
                              
     def remove_candidates(self):
-        if self.lockedSingle():       # assign possible values and renove candidates
+        before = timer()
+        if self.pointingSubset():
             return True
-        elif self.nakedSubset():
+        pointingTimer = timer()
+        # elif self.lockedSingle():     #incorporated in pointing subset
+        #     return True
+        if self.nakedSubset():
             return True
+        nakedTimer = timer()
         if self.hiddenSubset():
             return True
-        else:
-            return False
+        hiddenTimer = timer()
+        print(f"Pointing: {(pointingTimer-before)*1000}, Naked: {(nakedTimer-pointingTimer)*1000}, Hidden: {(hiddenTimer-nakedTimer)*1000}")
+        return False
 
     def lockedSingle(self):
         # build a list of the index of the tiles in a block that can have that number
@@ -677,18 +684,17 @@ class RemCandButton(Tile_parent):
                             assert isinstance(tileRemVal, Tile)
                             for val in tileRemVal.possibleValues:
                                 if val in tile.possibleValues:
-                                    print(f"removing {val} at {tileRemVal.x+1}/{tileRemVal.y+1} ")
+                                    print(f"removing {val} at {tileRemVal.x+1}/{tileRemVal.y+1}")
                                     tileRemVal.possibleValues.remove(val)
                                     tileRemVal.update_sprite()
                                     couldRemove = True
                         if couldRemove:
-                            print(f"naked subset: {tile.possibleValues} in:")
                             if subset == tile.block:
-                                print(f"at block {(int(tile.y/3) * 3) + int(tile.x/3) +1}")
+                                print(f"due to naked subset {tile.possibleValues} at block {(int(tile.y/3) * 3) + int(tile.x/3) +1}")
                             elif subset == tile.row:
-                                print(f"at row {tile.y+1}")
+                                print(f"due to naked subset {tile.possibleValues} at row {tile.y+1}")
                             elif subset == tile.column:
-                                print(f"at column {tile.x+1}")
+                                print(f"due to naked subset {tile.possibleValues} at column {tile.x+1}")
 
                             # for t in sameTiles:
                             #     print(f" {t.x}/{t.y}")
@@ -701,14 +707,40 @@ class RemCandButton(Tile_parent):
                 allTileValues = []      # [[tiles containing 1], [tiles containing 2], [etc]]
                 for i in range(1,10):
                     allTileValues.append([tile for tile in subset if isinstance(tile, Tile) and i in tile.possibleValues])
-                for i, numberList in enumerate(allTileValues):
-                    if len(numberList) <2:
-                        continue
+                
                     # enter lists of tiles, which numbers can be in the same tiles
                     # ex: of two tiles have 6 and 2 tiles have 7, see if they are the same
                     # sametiles =  [compareList for j, compareList in enumerate(allTileValues) if i!=j and numberList == compareList]
-                    # Hidden Pair:
+
+            
+            # for subset in group: 
+            #     numList = [i for i in range(1,10)]
+            #     for i in numList:
+            #         listConnected = []
+                    
+                    
+
+            #         while True:
+            #             listConnected, numList = self.getConnected(i, subset, listConnected, numList)
+            #             for tile in listConnected:
+            #                 assert isinstance(tile,Tile)
+            #                 for j in tile.possibleValues:
+            #                     i=j
+            #                     break
+            #             if i not in numList:
+            #                 if len(listConnected) > 1:
+            #                     print("connected")
+            #                 break
+
+                # Hidden Pair:
+                for i, numberList in enumerate(allTileValues):
+                    if len(numberList) <2:
+                        continue
                     for j, compareList in enumerate(allTileValues):     #
+                        if i!=j and len(compareList) > 1 and all(n in numberList for n in compareList):
+                            # print(f"subset in set: {i+1}, {j+1}")
+                            return False
+
                         if i!=j and numberList == compareList and len(compareList) == 2:
                             # if len(sametiles) > 1:
                             
@@ -716,18 +748,77 @@ class RemCandButton(Tile_parent):
                                 assert isinstance(tile,Tile)
                                 if any(n not in (i+1,j+1) for n in tile.possibleValues):
                                         couldRemove = True
+                                        print("hidden Pair")
                                         print(f"{i+1}, {j+1}, prev:{tile.possibleValues}")
                                         for n in tile.possibleValues:
                                             if n not in (i+1,j+1):
                                                 tile.possibleValues.remove(n)
                                         print(f"{tile.possibleValues} at {tile.x+1}, {tile.y+1}")
                                 tile.update_sprite()
+                        if i!=j and all(n in numberList for n in compareList):
+                            pass
+
+
+                    
+
+                        
+    # def getConnected(self, startVar:int, tileList:pygame.sprite.Group, listConnected:list, numList: list):
+    #     numList.remove(startVar)
+    #     for tile in tileList:
+    #         assert isinstance(tile, Tile)
+    #         if tile.value==0 and startVar in tile.possibleValues and not tile in listConnected:
+    #             listConnected.append(tile)
+
+
+    #     return listConnected, numList
+
+
+
+
+
+
+
+
+
+
+                
                             
 
 
                     
         return couldRemove
 
+    def pointingSubset(self):
+        couldRemove = False
+        for tile in tiles:
+            assert isinstance(tile, Tile)
+            for i in tile.possibleValues:
+                for  subset in (tile.block, tile.row, tile.column):
+                    numInTiles = [t for t in subset if isinstance(t, Tile) and i in t.possibleValues]
+                    if len(numInTiles) > 1:
+                        for sub in (tile.block, tile.row, tile.column):
+                            if subset == sub:
+                                continue
+                            if all(t in sub for t in numInTiles):
+                                
+                                for t in sub:
+                                    if isinstance(t, Tile) and i in t.possibleValues and not t in subset:
+                                        if subset == tile.block:
+                                            print(f"removing {i} at block {(int(tile.y/3) * 3) + int(tile.x/3) +1}")
+                                        elif subset == tile.row:
+                                            print(f"removing {i} at row {tile.y+1}")
+                                        elif subset == tile.column:
+                                            print(f"removing {i} at column {tile.x+1}")
+                                        couldRemove = True
+                                        t.possibleValues.remove(i)
+                        if couldRemove:
+                            print(f"due to Pointing subset")
+                            return couldRemove
+
+                                
+                # for sub in (tile.block, tile.row, tile.column):
+                #     if all(i in t.possibleValues for t in sub if isinstance(t, Tile))
+        return couldRemove
 
 class FillCandButton(Tile_parent):
     def __init__(self, size, position, string, font) -> None:
