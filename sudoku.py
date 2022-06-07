@@ -8,7 +8,7 @@ import os
 
 
 def main():
-    global edit_mode, holding_mb1, dbcT, sudoku, solution, tClock
+    global edit_mode, holding_mb1, dbcT, sudoku, solution, tClock, logging
     # Display
     pygame.init()
     display_game = display.set_mode((800,600))
@@ -20,6 +20,7 @@ def main():
     dbcClock = time.Clock()
     tClock = time.Clock()
     dbcT = 1000
+    logging = False
     
 
     # Sudoku
@@ -179,8 +180,8 @@ def get_sudoku():
             cs = sudoku.decode('UTF-8')
             clean_out.append(cs[:-1])
 
-        # clean_out[0] = '.........9.46.7....768.41..3.97.1.8.7.8...3.1.513.87.2..75.261...54.32.8.........'
-        # clean_out[1] = "583219467914637825276854139349721586728965341651348792497582613165493278832176954"
+        # clean_out[0] = '093004560060003140004608309981345000347286951652070483406002890000400010029800034'
+        # clean_out[1] = "093004560060003140004608309981345000347286951652070483406002890000400010029800034"
         #double: '.........9.46.7....768.41..3.97.1.8.7.8...3.1.513.87.2..75.261...54.32.8.........'
         sudoku = clean_out[0].replace(".", "0")
         # assert isinstance(sudoku, str)
@@ -259,9 +260,11 @@ class Tile(Tile_parent):
 
         super().__init__(
             size, (self.x*size, self.y*size), value, tfont)
+        
         self.row = columns[self.y]
         self.column = rows[self.x]
         self.block = blocks[int(self.y/3)*3+int(self.x/3)]
+        self.subsets = (self.column, self.row, self.block)
         # print(str(int(self.y/3)*3+int(self.x/3)))
         self.row.add(self)
         self.column.add(self)
@@ -316,7 +319,7 @@ class Tile(Tile_parent):
         elif self.value != 0:
             for tile in tiles:
                 assert isinstance(tile, Tile)
-                if tile.value == self.value:
+                if tile.value == self.value or self.value in tile.possibleValues:
                         tile.select()
       
     def deselect(self):
@@ -486,7 +489,9 @@ class CheckButton(Tile_parent):
         self.update_sprite()
 
     def select(self):
+        # if solution == sudoku:
         self.bg = pygame.Color("green")
+        # else:
         for i, tile in enumerate(tiles):
             assert isinstance(tile, Tile)
             if sudoku[i] != solution[i]:
@@ -554,7 +559,8 @@ class SolveButton(Tile_parent):
                                 assert isinstance(t, Tile)
                                 if i in t.possibleValues:
                                     t.possibleValues.remove(i)
-                                    print(f"{i} only possible in Box {ib + 1} row {possibleTileForVar[0].y + 1}, therefore removing it from its row")
+                                    if logging:
+                                        print(f"{i} only possible in Box {ib + 1} row {possibleTileForVar[0].y + 1}, therefore removing it from its row")
                                     couldRemove = True
                                     removing = True
                                     t.update_sprite()
@@ -569,13 +575,16 @@ class SolveButton(Tile_parent):
                                 assert isinstance(t, Tile)
                                 if i in t.possibleValues:
                                     t.possibleValues.remove(i)
-                                    print(
+                                    if logging:
+                                        print(
                                         f"{i} only possible in Box {ib + 1} column {possibleTileForVar[0].x + 1}, therefore removing it from its column")
                                     couldRemove = True
                                     removing = True
                                     t.update_sprite()
-        print("--------")
+        if logging:
+            print("--------")
         return couldRemove
+    
     def getNumFreeTiles(self):
         num = 0
         for tile in tiles:
@@ -594,22 +603,41 @@ class RemCandButton(Tile_parent):
         if self.remove_candidates():
             pass
         else:
-            print("no more")
+            if logging:
+                print("no more")
                              
     def remove_candidates(self):
+        # logging = True
         before = timer()
+        if self.hiddenSubset():
+            hiddenTimer = timer()
+            if logging:
+                print(f"Hidden: {(hiddenTimer-before)*1000}")
+            return True
+        hiddenTimer = timer()
         if self.pointingSubset():
+            pointingTimer = timer()
+            if logging:
+                print(f"Pointing: {(pointingTimer-hiddenTimer)*1000}")
             return True
         pointingTimer = timer()
         # elif self.lockedSingle():     #incorporated in pointing subset
         #     return True
         if self.nakedSubset():
+            nakedTimer = timer()
+            if logging:
+                print(f"Naked: {(nakedTimer-pointingTimer)*1000}")
             return True
         nakedTimer = timer()
-        if self.hiddenSubset():
+
+        if self.xwing():
+            xwingTimer = timer()
+            if logging:
+                print(f"X-Wing: {(xwingTimer-nakedTimer)*1000}")
             return True
-        hiddenTimer = timer()
-        print(f"Pointing: {(pointingTimer-before)*1000}, Naked: {(nakedTimer-pointingTimer)*1000}, Hidden: {(hiddenTimer-nakedTimer)*1000}")
+
+        # if logging:
+        #     print(f"Hidden: {(hiddenTimer-before)*1000}, Pointing: {(nakedTimer-pointingTimer)*1000}, Naked: {(pointingTimer-hiddenTimer)*1000}")
         return False
 
     def lockedSingle(self):
@@ -631,7 +659,8 @@ class RemCandButton(Tile_parent):
                     if len([j for j in possibleTileForVar[0].row if i in j.possibleValues]) == len(possibleTileForVar):
                         continue
                     #remove all instances of the possible values except for those in this box
-                    print(f"{i} only possible in Box {ib + 1} row {possibleTileForVar[0].y + 1}, therefore removing it from its row")
+                    if logging:
+                        print(f"{i} only possible in Box {ib + 1} row {possibleTileForVar[0].y + 1}, therefore removing it from its row")
                     for t in possibleTileForVar[0].row:     
                         if t not in possibleTileForVar:
                             assert isinstance(t, Tile)
@@ -646,8 +675,8 @@ class RemCandButton(Tile_parent):
                 if all(element.x == possibleTileForVar[0].x for element in possibleTileForVar) and len(possibleTileForVar) > 1:
                     if len([j for j in possibleTileForVar[0].column if i in j.possibleValues]) == len(possibleTileForVar):
                         continue
-                    
-                    print(f"{i} only possible in Box {ib + 1} column {possibleTileForVar[0].x +1}, therefore removing it from its column")
+                    if logging:
+                        print(f"{i} only possible in Box {ib + 1} column {possibleTileForVar[0].x +1}, therefore removing it from its column")
                     # remove all instances of the possible values except for those in this box
                     for t in possibleTileForVar[0].column:
                         assert isinstance(t, Tile)
@@ -664,6 +693,8 @@ class RemCandButton(Tile_parent):
     def nakedSubset(self):
         # wenn in x feldern in einer reihe/spalte/block x mögliche zahlen enthalten, können diese zahlen aus den restlichen felderd der reihe/spalte/block gelöscht werden
         couldRemove = False
+        # logging = True
+        counter = 0
         for tile in tiles:
             assert isinstance(tile, Tile)
             if tile.value == 0:# and len(tile.possibleValues) <= 4:
@@ -684,21 +715,25 @@ class RemCandButton(Tile_parent):
                             assert isinstance(tileRemVal, Tile)
                             for val in tileRemVal.possibleValues:
                                 if val in tile.possibleValues:
-                                    print(f"removing {val} at {tileRemVal.x+1}/{tileRemVal.y+1}")
+                                    if logging:
+                                        print(f"removing {val} at {tileRemVal.x+1}/{tileRemVal.y+1}")
                                     tileRemVal.possibleValues.remove(val)
                                     tileRemVal.update_sprite()
                                     couldRemove = True
                         if couldRemove:
-                            if subset == tile.block:
-                                print(f"due to naked subset {tile.possibleValues} at block {(int(tile.y/3) * 3) + int(tile.x/3) +1}")
-                            elif subset == tile.row:
-                                print(f"due to naked subset {tile.possibleValues} at row {tile.y+1}")
-                            elif subset == tile.column:
-                                print(f"due to naked subset {tile.possibleValues} at column {tile.x+1}")
-
-                            # for t in sameTiles:
-                            #     print(f" {t.x}/{t.y}")
+                            if logging:
+                                if subset == tile.block:
+                                    print(f"due to naked subset {tile.possibleValues} at block {(int(tile.y/3) * 3) + int(tile.x/3) +1}")
+                                elif subset == tile.row:
+                                    print(f"due to naked subset {tile.possibleValues} at row {tile.y+1}")
+                                elif subset == tile.column:
+                                    print(f"due to naked subset {tile.possibleValues} at column {tile.x+1}")
                             return couldRemove
+                        elif logging:
+                            print(tile.index)
+                            counter +=1
+        if logging:
+            print(f"amount: {counter}")
 
     def hiddenSubset(self):
         couldRemove = False
@@ -711,26 +746,6 @@ class RemCandButton(Tile_parent):
                     # enter lists of tiles, which numbers can be in the same tiles
                     # ex: of two tiles have 6 and 2 tiles have 7, see if they are the same
                     # sametiles =  [compareList for j, compareList in enumerate(allTileValues) if i!=j and numberList == compareList]
-
-            
-            # for subset in group: 
-            #     numList = [i for i in range(1,10)]
-            #     for i in numList:
-            #         listConnected = []
-                    
-                    
-
-            #         while True:
-            #             listConnected, numList = self.getConnected(i, subset, listConnected, numList)
-            #             for tile in listConnected:
-            #                 assert isinstance(tile,Tile)
-            #                 for j in tile.possibleValues:
-            #                     i=j
-            #                     break
-            #             if i not in numList:
-            #                 if len(listConnected) > 1:
-            #                     print("connected")
-            #                 break
 
                 # Hidden Pair:
                 for i, numberList in enumerate(allTileValues):
@@ -748,43 +763,17 @@ class RemCandButton(Tile_parent):
                                 assert isinstance(tile,Tile)
                                 if any(n not in (i+1,j+1) for n in tile.possibleValues):
                                         couldRemove = True
-                                        print("hidden Pair")
-                                        print(f"{i+1}, {j+1}, prev:{tile.possibleValues}")
+                                        if logging:
+                                            print("hidden Pair")
+                                            print(f"{i+1}, {j+1}, prev:{tile.possibleValues}")
                                         for n in tile.possibleValues:
                                             if n not in (i+1,j+1):
                                                 tile.possibleValues.remove(n)
-                                        print(f"{tile.possibleValues} at {tile.x+1}, {tile.y+1}")
+                                        if logging:
+                                            print(f"{tile.possibleValues} at {tile.x+1}, {tile.y+1}")
                                 tile.update_sprite()
                         if i!=j and all(n in numberList for n in compareList):
                             pass
-
-
-                    
-
-                        
-    # def getConnected(self, startVar:int, tileList:pygame.sprite.Group, listConnected:list, numList: list):
-    #     numList.remove(startVar)
-    #     for tile in tileList:
-    #         assert isinstance(tile, Tile)
-    #         if tile.value==0 and startVar in tile.possibleValues and not tile in listConnected:
-    #             listConnected.append(tile)
-
-
-    #     return listConnected, numList
-
-
-
-
-
-
-
-
-
-
-                
-                            
-
-
                     
         return couldRemove
 
@@ -793,8 +782,10 @@ class RemCandButton(Tile_parent):
         for tile in tiles:
             assert isinstance(tile, Tile)
             for i in tile.possibleValues:
-                for  subset in (tile.block, tile.row, tile.column):
+                for i_ss, subset in enumerate((tile.block, tile.row, tile.column)):
                     numInTiles = [t for t in subset if isinstance(t, Tile) and i in t.possibleValues]
+
+
                     if len(numInTiles) > 1:
                         for sub in (tile.block, tile.row, tile.column):
                             if subset == sub:
@@ -803,22 +794,67 @@ class RemCandButton(Tile_parent):
                                 
                                 for t in sub:
                                     if isinstance(t, Tile) and i in t.possibleValues and not t in subset:
-                                        if subset == tile.block:
-                                            print(f"removing {i} at block {(int(tile.y/3) * 3) + int(tile.x/3) +1}")
-                                        elif subset == tile.row:
-                                            print(f"removing {i} at row {tile.y+1}")
-                                        elif subset == tile.column:
-                                            print(f"removing {i} at column {tile.x+1}")
+                                        if logging:
+                                            if subset == tile.block:
+                                                print(f"removing {i} at block {(int(tile.y/3) * 3) + int(tile.x/3) +1}")
+                                            elif subset == tile.row:
+                                                print(f"removing {i} at row {tile.y+1}")
+                                            elif subset == tile.column:
+                                                print(f"removing {i} at column {tile.x+1}")
                                         couldRemove = True
                                         t.possibleValues.remove(i)
                         if couldRemove:
-                            print(f"due to Pointing subset")
+                            if logging:
+                                print(f"due to Pointing subset")
                             return couldRemove
 
                                 
                 # for sub in (tile.block, tile.row, tile.column):
                 #     if all(i in t.possibleValues for t in sub if isinstance(t, Tile))
         return couldRemove
+
+    def xwing(self):
+        for i in range(1,10):
+            for rootTile in tiles:
+                assert isinstance(rootTile, Tile)
+                if rootTile.value==0 and i in rootTile.possibleValues:
+                    for i_ss, subset in enumerate((rootTile.column, rootTile.row)):
+                        tilesWithNum = [t for t in subset if isinstance(t, Tile) and i in t.possibleValues and t != rootTile]
+                        
+                        if len(tilesWithNum) == 1:      #if there is exactly one other candidate
+                            tile2 = tilesWithNum[0]     # second
+                            for i_s, sub in enumerate((tile2.column, tile2.row)):
+                                if sub == subset:
+                                    continue
+                                tilesWithNum2 = [t for t in sub if isinstance(t, Tile) and i in t.possibleValues]
+                                
+                                if len(tilesWithNum2) > 1:
+                                    for tile3 in tilesWithNum2:     #third
+                                        if tile3.index == tile2.index:
+                                            continue
+                                        tilesWithNum3 = [t for t in tile3.subsets[i_ss] if isinstance(t, Tile) and i in t.possibleValues and t != tile2 and t!=tile3]
+                                        
+                                        if len(tilesWithNum3) == 1 and tilesWithNum3[0] in rootTile.subsets[i_s]:
+                                            tile4 = tilesWithNum3[0]
+                                            tilesWithNum4 = [t for t in tile4.subsets[i_s] if isinstance(t, Tile) and i in t.possibleValues]
+                                            
+                                            if len(tilesWithNum2) > 2 or len(tilesWithNum4) > 2:    # if there are other Tiles with that Value int the row/column
+                                                if logging:
+                                                    print(f"XWING {i} at ({rootTile.x+1}, {rootTile.y+1}), ({tile2.x+1}, {tile2.y+1}), ({tile3.x+1}, {tile3.y+1}), ({tile4.x+1}, {tile4.y+1})")
+                                                for t in tilesWithNum2:
+                                                    if t != tile2 and t != tile3 and i in t.possibleValues:
+                                                        t.possibleValues.remove(i)
+                                                        if logging:
+                                                            print(f"removing {i} from ({t.x+1}, {t.y+1})")
+                                                for t in tilesWithNum4:
+                                                    if t != rootTile and t != tile4 and i in t.possibleValues:
+                                                        t.possibleValues.remove(i)
+                                                        if logging:
+                                                            print(f"removing {i} from ({t.x+1}, {t.y+1})")
+                                                return True
+        return False
+                            
+
 
 class FillCandButton(Tile_parent):
     def __init__(self, size, position, string, font) -> None:
@@ -858,7 +894,8 @@ class fillValButton(Tile_parent):
             tile.clear()
             tile.update_value(str(num))
             self.removeCand(tile, num)
-            print(f"({tile.x+1}, {tile.y+1}): {str(num)}")
+            if logging:
+                print(f"({tile.x+1}, {tile.y+1}): {str(num)}")
             return True
         else:
             return False
@@ -868,12 +905,14 @@ class fillValButton(Tile_parent):
     def getNext(self):
         num, tile = self.soleCandidate()
         if num != None:
-            print("Sole Candidate:")
+            if logging:
+                print("Sole Candidate:")
             return num, tile
 
         num, tile = self.uniqueCandidate()
         if num != None:
-            print("Unique Candidate:")
+            if logging:
+                print("Unique Candidate:")
             return num, tile
         return num, tile
 
@@ -951,7 +990,8 @@ class ResetButton(Tile_parent):
         for i, tile in enumerate(tiles):
             assert isinstance(tile, Tile)
             tile.reset(sudoku[i])
-        print("----- CLEARED -----")
+        if logging:
+            print("----- CLEARED -----")
 
 
 if __name__ == "__main__":
