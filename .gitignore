@@ -1,6 +1,6 @@
 # General 
 Thumbs.db
-
+sudoku.csv
 
 # Python
 # Byte-compiled / optimized / DLL files
@@ -565,3 +565,4 @@ FodyWeavers.xsd
 
 # JetBrains Rider
 *.sln.iml
+
