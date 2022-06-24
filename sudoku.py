@@ -246,7 +246,7 @@ def check_board():
 
 class Rules():
     def __init__(self) -> None:
-        self.timeTaken = {"assign":0., "soleCand":0., "hiddCand":0., "nakedSub":0., "hiddSub2":0., "hiddSub3":0., "pointSub":0., "xwing":0.}
+        self.timeTaken = {"assign":0., "soleCand":0., "hiddCand":0., "nakedSub":0., "hiddSub2":0., "hiddSub3":0., "pointSub":0., "xwing":0., "ywing":0.}
         self.checktime = 0.
 
     def assignPossibleValues(self) -> bool:
@@ -331,16 +331,16 @@ class Rules():
                                 assert isinstance(tileRemVal, Tile)
                                 for val in tileRemVal.possibleValues:
                                     if val in tile.possibleValues:
-                                        logging.info(f"removing {val} at {tileRemVal.x+1}/{tileRemVal.y+1}")
+                                        # logging.info(f"removing {val} at {tileRemVal.x+1}/{tileRemVal.y+1}")
                                         tileRemVal.possibleValues.remove(val)
                                         couldRemove = True
                             if couldRemove:
-                                if ssub == tile.block:
-                                    logging.info(f"due to naked subset {tile.possibleValues} at block {(int(tile.y/3) * 3) + int(tile.x/3) +1}")
-                                elif ssub == tile.row:
-                                    logging.info(f"due to naked subset {tile.possibleValues} at row {tile.y+1}")
-                                elif ssub == tile.column:
-                                    logging.info(f"due to naked subset {tile.possibleValues} at column {tile.x+1}")
+                                # if ssub == tile.block:
+                                #     logging.info(f"due to naked subset {tile.possibleValues} at block {(int(tile.y/3) * 3) + int(tile.x/3) +1}")
+                                # elif ssub == tile.row:
+                                #     logging.info(f"due to naked subset {tile.possibleValues} at row {tile.y+1}")
+                                # elif ssub == tile.column:
+                                #     logging.info(f"due to naked subset {tile.possibleValues} at column {tile.x+1}")
                                 
                                 after = timer()
                                 self.timeTaken["nakedSub"] += after-before
@@ -396,15 +396,14 @@ class Rules():
                                 
                                 for t in sub:
                                     if isinstance(t, Tile) and i in t.possibleValues and not t in subset:
-                                        if subset == tile.block:
-                                            logging.info(f"removing {i} at block {(int(tile.y/3) * 3) + int(tile.x/3) +1}")
-                                        elif subset == tile.row:
-                                            logging.info(f"removing {i} at row {tile.y+1}")
-                                        elif subset == tile.column:
-                                            logging.info(f"removing {i} at column {tile.x+1}")
+                                        # if subset == tile.block:
+                                        #     logging.info(f"removing {i} at block {(int(tile.y/3) * 3) + int(tile.x/3) +1}")
+                                        # elif subset == tile.row:
+                                        #     logging.info(f"removing {i} at row {tile.y+1}")
+                                        # elif subset == tile.column:
+                                        #     logging.info(f"removing {i} at column {tile.x+1}")
                                         couldRemove = True
                                         t.possibleValues.remove(i)
-                                        t.update_sprite()
                         if couldRemove:
                             after = timer()
                             self.timeTaken["pointSub"] += after-before
@@ -419,7 +418,6 @@ class Rules():
 
     def xwing(self):
         before = timer()
-        # logging = True
         # logging.info("removing xwing...")
         for i in range(1,10):
             for rootTile in tiles:
@@ -439,31 +437,95 @@ class Rules():
                                     for tile3 in tilesWithNum2:     #third
                                         if tile3.index == tile2.index:
                                             continue
-                                        tilesWithNum3 = [t for t in tile3.subsets[i_ss] if isinstance(t, Tile) and i in t.possibleValues and t != tile2 and t!=tile3]
+                                        tilesWithNum3 = [t for t in tile3.getSubsets()[i_ss] if isinstance(t, Tile) and i in t.possibleValues and t != tile2 and t!=tile3]
                                         
-                                        if len(tilesWithNum3) == 1 and tilesWithNum3[0] in rootTile.subsets[i_s]:
+                                        if len(tilesWithNum3) == 1 and tilesWithNum3[0] in rootTile.getSubsets()[i_s]:
                                             tile4 = tilesWithNum3[0]
-                                            tilesWithNum4 = [t for t in tile4.subsets[i_s] if isinstance(t, Tile) and i in t.possibleValues]
+                                            tilesWithNum4 = [t for t in tile4.getSubsets()[i_s] if isinstance(t, Tile) and i in t.possibleValues]
                                             
                                             if len(tilesWithNum2) > 2 or len(tilesWithNum4) > 2:    # if there are other Tiles with that Value int the row/column
-                                                # logging.info(f"XWING {i} at ({rootTile.x+1}, {rootTile.y+1}), ({tile2.x+1}, {tile2.y+1}), ({tile3.x+1}, {tile3.y+1}), ({tile4.x+1}, {tile4.y+1})")
-                                                
                                                 for t in tilesWithNum2:
                                                     if t != tile2 and t != tile3 and i in t.possibleValues:
                                                         t.possibleValues.remove(i)
-                                                        t.update_sprite()
                                                         logging.info(f"removing {i} from ({t.x+1}, {t.y+1})")
                                                 for t in tilesWithNum4:
                                                     if t != rootTile and t != tile4 and i in t.possibleValues:
                                                         t.possibleValues.remove(i)
-                                                        t.update_sprite()
                                                         logging.info(f"removing {i} from ({t.x+1}, {t.y+1})")
+                                                logging.info(f"Due to XWING {i} at ({rootTile.x+1}, {rootTile.y+1}), ({tile2.x+1}, {tile2.y+1}), ({tile3.x+1}, {tile3.y+1}), ({tile4.x+1}, {tile4.y+1})")
                                                 after = timer()
                                                 self.timeTaken["xwing"] += after-before
                                                 return True
         after = timer()
         self.timeTaken["xwing"] += after-before
         return False
+
+    def ywing(self):
+        before = timer()
+        for tile in tiles:
+            if isinstance(tile, Tile) and len(tile.possibleValues) == 2:
+                ycandidates = []
+                for subset in tile.getSubsets():
+                    for t1 in subset:
+                        # any tile with exactly 2 possible values could be a ywing arm
+                        if isinstance(t1, Tile) and t1 not in ycandidates and t1.possibleValues != tile.possibleValues and len(t1.possibleValues) == 2 and any(i in tile.possibleValues for i in t1.possibleValues):
+                            ycandidates.append(t1)
+                # a ywing needs 2 arms
+                if len(ycandidates) < 2:
+                    break
+                
+                for t in ycandidates:
+                    assert isinstance(t, Tile)
+                    for num in t.possibleValues:
+                        # eliminate any tile that has a number not represented in any other arm or the roottile
+                        if any(num in t3.possibleValues or num in tile.possibleValues for t3 in ycandidates if isinstance(t3, Tile) and t3 != t):
+                            pass
+                        else:
+                            ycandidates.remove(t)
+                            break
+                if len(ycandidates) < 2:
+                    break
+                elif len(ycandidates) == 2 and any(s in ycandidates[0].getSubsets() for s in ycandidates[1].getSubsets()):
+                    # if the 2 arms of the YWing are in the same row/column/block they cant form a ywing
+                        break
+                logging.info(f"base vals: {tile.possibleValues}")
+                # test all combinations to see if the formed ywing yields any results
+                for i, arm1 in enumerate(ycandidates):
+                    assert isinstance(arm1, Tile)
+                    for arm2 in ycandidates[i+1:]:
+                        if isinstance(arm2, Tile) and arm1.possibleValues!=arm2.possibleValues and all(s not in arm1.getSubsets() for s in arm2.getSubsets()):
+                            ynum = 0
+                            arm1Sub = None
+                            arm2Sub = None
+                            for j in arm1.possibleValues:
+                                if j in arm2.possibleValues:
+                                    ynum = j
+                            if ynum ==0:
+                                logging.error("Arm1 and Arm2 dont share any number")
+                                break
+                            if ynum in tile.possibleValues:
+                                break
+                            for iSubset, sub in enumerate(tile.getSubsets()):
+                                if sub in arm1.getSubsets():
+                                    arm1Sub = iSubset
+                                elif sub in arm2.getSubsets():
+                                    arm2Sub = iSubset
+                            if arm1Sub == None or arm2Sub == None:
+                                logging.error("Arm1 and roottile or Arm2 and roottile dont share subset")
+                                break
+
+                            for t in arm1.getSubsets()[arm2Sub]:
+                                if t in arm2.getSubsets()[arm1Sub] and isinstance(t,Tile):
+                                    if ynum in t.possibleValues:
+                                        t.possibleValues.remove(ynum)
+                                        logging.info(f"YWing: tile ({tile.x+1},{tile.y+1}) cant have val {ynum}" )
+                                    # else:
+                                    #     logging.info(f"YWing: tile {tile.x+1}, {tile.y+1} cant have val {ynum}" )
+                            
+
+                    
+        after = timer()
+        self.timeTaken["ywing"] += after-before
 
 class GameBoard(sprite.Sprite):
     def __init__(self, cubesize:int) -> None:
@@ -639,7 +701,7 @@ class Tile(Tile_parent):
         self.row = columns[self.y]
         self.column = rows[self.x]
         self.block = blocks[int(self.y/3)*3+int(self.x/3)]
-        self.subsets = (self.column, self.row, self.block)
+        # self.subsets = (self.column, self.row, self.block)
         self.row.add(self)
         self.column.add(self)
         self.block.add(self)
@@ -808,6 +870,9 @@ class Tile(Tile_parent):
             self.bg = self.color_default
         self.update_sprite()
 
+    def getSubsets(self):
+        return (self.column, self.row, self.block)
+
 class UIButton(Tile_parent):
     def __init__(self, size:int, position:tuple, string:str, font:str, mode:int) -> None:
         super().__init__(size, position, string, font)
@@ -929,6 +994,8 @@ class SolveButton(Tile_parent):
             logging.warning(f"Couldnt solve. Time: {round(after-before, 4)}s")
         else:
             logging.warning(f"Time for Step: {round(after-before, 4)}s")
+        if any(val > 1 for key, val in rules.timeTaken.items()):
+            pass
 
     def getNext(self):
         before = timer()
@@ -939,17 +1006,16 @@ class SolveButton(Tile_parent):
         listSoles = rules.soleCandidate()
         t_soleCand = timer()
         if len(listSoles) > 0:
-            logging.info("Sole candidates:")
+            # logging.info("Sole candidates:")
             self.writeVal(listSoles)
             return True
         
         listHidden= rules.hiddenSingles()
         t_hiddenCand = timer()
         if len(listHidden) > 0:
-            logging.info("Hidden singles:")
+            # logging.info("Hidden singles:")
             self.writeVal(listHidden)
             return True
-        # logging.info(f"Time taken: {round((t_hiddenCand-t_soleCand)*1000, 2)}ms")
         nSubset = rules.nakedSubset()
         t_nSubset = timer()
         if nSubset:
@@ -958,7 +1024,7 @@ class SolveButton(Tile_parent):
         # logging.info(f"Time taken: {round((t_nSubset-t_hiddenCand)*1000, 2)}ms")
         t_hSubset2 = timer()
         if len(subset)>0:
-            logging.warning(f"Hidden twins: {subset}")
+            logging.warning(f"Hidden pair: {subset}")
             self._rem_subset_from_group(subset, group)
             return True
         # logging.info(f"Time taken: {round((t_hSubset2-t_nSubset)*1000, 2)}ms")
@@ -970,17 +1036,23 @@ class SolveButton(Tile_parent):
             return True
         # logging.info(f"Time taken: {round((t_hSubset3-t_hSubset2)*1000, 2)}ms")
         if rules.pointingSubset():
+            logging.info("due to pointing subset")
             return True
         xwing = rules.xwing()
         if xwing:
             return True
+        ywing = rules.ywing()
+        if ywing:
+            pass
+        
+        
         else: 
             logging.warning("Nothing was able to be eliminated")
             return False
             
     def writeVal(self, lst):
         for i in lst:                
-            logging.info(f"({i[0].x+1}, {i[0].y+1}): {i[1]}")
+            # logging.info(f"({i[0].x+1}, {i[0].y+1}): {i[1]}")
             i[0].clear()
             i[0].update_value(str(i[1]))
         # logging.info("")
@@ -991,7 +1063,7 @@ class SolveButton(Tile_parent):
             for num in tile.possibleValues:
                 if num not in subset:
                     tile.possibleValues.remove(num)
-                    logging.warning(f"removing {num} from ({tile.x+1}, {tile.y+1})")
+                    # logging.warning(f"removing {num} from ({tile.x+1}, {tile.y+1})")
 
 class RemCandButton(Tile_parent):
     def __init__(self, size:int, position:tuple, string:str, font:str) -> None:
