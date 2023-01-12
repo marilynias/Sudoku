@@ -90,8 +90,6 @@ def build_UI(cubesize:int):
     gap = 10
     size_margin = cubesize+gap
 
-
-    
     UIs.add(ColorButton(cubesize, (ui_x - size_margin*3,  + gap), "", ui_font, Color("grey")))
     UIs.add(ColorButton(cubesize, (ui_x - size_margin*3, size_margin*1 + gap), "", ui_font, Color("green")))
     UIs.add(ColorButton(cubesize, (ui_x - size_margin*3, size_margin*2 + gap), "", ui_font, Color("red")))
@@ -325,26 +323,30 @@ class Rules():
                         lstSameVals = [t for t in lsub if isinstance(t,Tile) and t!=tile and t.value == 0 and all(j in tile.possibleValues for j in t.possibleValues)]
                         lstSameVals.append(tile)
                         if len(lstSameVals) == len(tile.possibleValues):
-                            for tileRemVal in ssub:
-                                if tileRemVal in lstSameVals:
-                                    continue
-                                assert isinstance(tileRemVal, Tile)
-                                for val in tileRemVal.possibleValues:
-                                    if val in tile.possibleValues:
-                                        # logging.info(f"removing {val} at {tileRemVal.x+1}/{tileRemVal.y+1}")
-                                        tileRemVal.possibleValues.remove(val)
-                                        couldRemove = True
-                            if couldRemove:
-                                # if ssub == tile.block:
-                                #     logging.info(f"due to naked subset {tile.possibleValues} at block {(int(tile.y/3) * 3) + int(tile.x/3) +1}")
-                                # elif ssub == tile.row:
-                                #     logging.info(f"due to naked subset {tile.possibleValues} at row {tile.y+1}")
-                                # elif ssub == tile.column:
-                                #     logging.info(f"due to naked subset {tile.possibleValues} at column {tile.x+1}")
-                                
-                                after = timer()
-                                self.timeTaken["nakedSub"] += after-before
-                                return couldRemove
+                            check = (ssub,)
+                            if all(t in tile.block for t in lstSameVals):
+                                check = (ssub, tile.block)
+                            for s in check:
+                                for tileRemVal in s:
+                                    if tileRemVal in lstSameVals:
+                                        continue
+                                    assert isinstance(tileRemVal, Tile)
+                                    for val in tileRemVal.possibleValues:
+                                        if val in tile.possibleValues:
+                                            # logging.info(f"removing {val} at {tileRemVal.x+1}/{tileRemVal.y+1}")
+                                            tileRemVal.possibleValues.remove(val)
+                                            couldRemove = True
+                                if couldRemove:
+                                    # if ssub == tile.block:
+                                    #     logging.info(f"due to naked subset {tile.possibleValues} at block {(int(tile.y/3) * 3) + int(tile.x/3) +1}")
+                                    # elif ssub == tile.row:
+                                    #     logging.info(f"due to naked subset {tile.possibleValues} at row {tile.y+1}")
+                                    # elif ssub == tile.column:
+                                    #     logging.info(f"due to naked subset {tile.possibleValues} at column {tile.x+1}")
+                                    
+                                    after = timer()
+                                    self.timeTaken["nakedSub"] += after-before
+                                    return couldRemove
         after = timer()
         self.timeTaken["nakedSub"] += after-before
 
@@ -574,7 +576,7 @@ class GameBoard(sprite.Sprite):
             "--generate", "1", "--one-line", "--solution", "--difficulty", "expert"], stdout=sp.PIPE) as proc:
             assert proc.stdout is not None
             out = proc.stdout.readlines()
-
+        out = []
         if len(out) > 0:
             for sudoku in out:
                 cs = sudoku.decode('UTF-8')
@@ -587,8 +589,8 @@ class GameBoard(sprite.Sprite):
         
         else:
             logging.warning("empty output")
-            sudoku =    '.........9.46.7....768.41..3.97.1.8.7.8...3.1.513.87.2..75.261...54.32.8.........'
-            solution =  '836719524451382679297645813382194765679523148145867392918436257764258931523971486'
+            sudoku =    '000002534034010280200034100023000740906000312147203908708326401300009600460070803'
+            solution =  '671892534534617289289534176823961745956748312147253968798326451315489627462175893'
 
         return sudoku, solution
 
@@ -905,8 +907,6 @@ class ClearButton(Tile_parent):
     def __init__(self, size:int, position:tuple, string:str, font:str) -> None:
         super().__init__(size, position, string, font) 
         assert isinstance(self.rect, Rect)
-        # self._txt_pos = (self.rect.size[0]/2 - self.txt.get_size()[0]/2,
-        #                  self.rect.size[1]/2 - self.txt.get_size()[1]/2)
         self.update_sprite()
 
     def select(self, mod=False):
@@ -1132,7 +1132,7 @@ class ResetButton(Tile_parent):
         reset()
 
 class SelectRulesButton(Tile_parent):
-    def __init__(self, size: int, position: tuple, string: str, font: str) -> None:
+    def __init__(self, size, position: tuple, string: str, font: str) -> None:
         super().__init__(size, position, string, font)
         self.rect = Rect(position, pygame.Vector2(size*2, size))
         self.image = Surface(self.rect.size)
