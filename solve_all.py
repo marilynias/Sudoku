@@ -4,9 +4,10 @@ import os
 # import sudoku
 import queue
 import logging
-from timeit import default_timer as timer
+from timeit import default_timer as timer, timeit
 from logging.handlers import QueueHandler, QueueListener
 import argparse
+import numpy as np
 from typing import List, Tuple
 
 
@@ -98,6 +99,7 @@ def main():
             # splits the string into list of ints
             sudoku = [int(char) for char in row[0]]
             before_solve = timer()
+            s = Sudoku(row[0])
             solve(sudoku)
             after_solve = timer()
             time_added += after_solve-before_solve
@@ -160,9 +162,10 @@ def validate(sudoku: List[int]) -> bool:
     print(sudoku)
 
     if 0 in sudoku:
-        print("unsolved Tiles")
+        #print("unsolved Tiles")
         return False
-    else: return True
+    else:
+        return True
     # else:
     #     for row in CONNECTED.rows:
     #         for tile in row:
@@ -342,9 +345,40 @@ class SudokuGrid():
     # 72 73 74|75 76 77|78 79 80
 
     def __init__(self) -> None:
+
         self._rows: List[List[int]] = [[] for i in range(9)]
+        # array([[0,  1,  2,  3,  4,  5,  6,  7,  8],
+        #        [9, 10, 11, 12, 13, 14, 15, 16, 17],
+        #        [18, 19, 20, 21, 22, 23, 24, 25, 26],
+        #        [27, 28, 29, 30, 31, 32, 33, 34, 35],
+        #        [36, 37, 38, 39, 40, 41, 42, 43, 44],
+        #        [45, 46, 47, 48, 49, 50, 51, 52, 53],
+        #        [54, 55, 56, 57, 58, 59, 60, 61, 62],
+        #        [63, 64, 65, 66, 67, 68, 69, 70, 71],
+        #        [72, 73, 74, 75, 76, 77, 78, 79, 80]])
+
         self._columns: List[List[int]] = [[] for i in range(9)]
+        # array([[0,  9, 18, 27, 36, 45, 54, 63, 72],
+        #        [1, 10, 19, 28, 37, 46, 55, 64, 73],
+        #        [2, 11, 20, 29, 38, 47, 56, 65, 74],
+        #        [3, 12, 21, 30, 39, 48, 57, 66, 75],
+        #        [4, 13, 22, 31, 40, 49, 58, 67, 76],
+        #        [5, 14, 23, 32, 41, 50, 59, 68, 77],
+        #        [6, 15, 24, 33, 42, 51, 60, 69, 78],
+        #        [7, 16, 25, 34, 43, 52, 61, 70, 79],
+        #        [8, 17, 26, 35, 44, 53, 62, 71, 80]])
+
         self._blocks: List[List[int]] = [[] for i in range(9)]
+        # array([[0,  1,  2,  9, 10, 11, 18, 19, 20],
+        #        [3,  4,  5, 12, 13, 14, 21, 22, 23],
+        #        [6,  7,  8, 15, 16, 17, 24, 25, 26],
+        #        [27, 28, 29, 36, 37, 38, 45, 46, 47],
+        #        [30, 31, 32, 39, 40, 41, 48, 49, 50],
+        #        [33, 34, 35, 42, 43, 44, 51, 52, 53],
+        #        [54, 55, 56, 63, 64, 65, 72, 73, 74],
+        #        [57, 58, 59, 66, 67, 68, 75, 76, 77],
+        #        [60, 61, 62, 69, 70, 71, 78, 79, 80]])
+
         for i in range(81):
             self._rows[int(i/9)].append(i)
             self._columns[i % 9].append(i)
@@ -369,11 +403,64 @@ class SudokuGrid():
     def getConnectedToInd(self, index: int) -> Tuple[List[int], List[int], List[int]]:
         return self._rows[int(index/9)], self._columns[index % 9], self._blocks[self.getBlockIndFromInd(index)]
 
+    def getConnectedFromSud(self, index: int, sudoku: List[int]):
+        return self._rows[int(index/9)], self._columns[index % 9], self._blocks[self.getBlockIndFromInd(index)]
+
     def getBlockIndFromInd(self, ind: int):
         # 0 1 2
         # 3 4 5
         # 6 7 8
         return int(ind / 27) * 3 + (int(ind % 9 / 3))
+
+
+class Sudoku():
+    # 0  1  2 |3  4  5 |6  7  8
+    # 9  10 11|12 13 14|15 16 17
+    # 18 19 20|21 22 23|24 25 26
+    # --------|--------|--------
+    # 27 28 29|30 31 32|33 34 35
+    # 36 37 38|39 40 41|42 43 44
+    # 45 46 47|48 49 50|51 52 53
+    # --------|--------|--------
+    # 54 55 56|57 58 59|60 61 62
+    # 63 64 65|66 67 68|69 70 71
+    # 72 73 74|75 76 77|78 79 80
+
+    # array([[0, 7, 0, 0, 0, 0, 0, 4, 3],
+    #        [0, 4, 0, 0, 0, 9, 6, 1, 0],
+    #        [8, 0, 0, 6, 3, 4, 9, 0, 0],
+    #        [0, 9, 4, 0, 5, 2, 0, 0, 0],
+    #        [3, 5, 8, 4, 6, 0, 0, 2, 0],
+    #        [0, 0, 0, 8, 0, 0, 5, 3, 0],
+    #        [0, 8, 0, 0, 7, 0, 0, 9, 1],
+    #        [9, 0, 2, 1, 0, 0, 0, 0, 5],
+    #        [0, 0, 7, 0, 4, 0, 8, 0, 2]])
+
+    def __init__(self, sudoku: str) -> None:
+        # following arrays keep the references. IE: a change to a number will change the same number in all arrays
+        self.o_sudoku = np.array([int(c) for c in sudoku]).reshape(81)
+        self.rows = self.o_sudoku.reshape(9, 9)
+        self.columns = self.o_sudoku.reshape(9, 9).swapaxes(0, 1)
+
+        # Blocks will not keep the references!
+        self.blocks = self.o_sudoku.reshape(
+            3, 3, 3, 3).swapaxes(1, 2).reshape(9, 9)
+
+        # print("Original arrays:")
+        # print(self.rows)
+        # pass
+
+    def doToColumns(self, func):
+        columns = self.rows.swapaxes(0, 1)
+
+        r = func(columns)
+
+        self.rows = r.swapaxes(1, 0)
+
+        return self.rows
+
+    def doToBlocks(self, func):
+        pass
 
 
 if __name__ == "__main__":
