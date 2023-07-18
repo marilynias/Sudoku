@@ -1,6 +1,10 @@
+#!/usr/bin/env python3
+
+
 import csv
 import time
 import os
+import subprocess
 # import sudoku
 import queue
 import logging
@@ -10,6 +14,20 @@ import argparse
 import numpy as np
 from typing import List, Tuple
 
+
+# def smaller_csv():
+#     FILE: str = "sudoku.csv"
+#     file_new = "sudoku_smaller.csv"
+#     # with open(file_new, "x") as f:
+#     #     pass
+
+#     with open(FILE) as f:
+#         with open(file_new, "a+") as f2:
+#             for i, line in enumerate(f):
+#                 if i > 1000000:
+#                     break
+#                 if "0" in line:
+#                     f2.write(line)
 
 def main():
     global solution
@@ -41,101 +59,129 @@ def main():
     FILE: str = args.file
     NUM_STEP: int = args.step_number
     # ruleset = sudoku.Rules()
+    reader = getSudokus(NUM_LINES, FILE)
+    
 
-    with open(FILE) as f:
-        reader = csv.reader(f)
-        before = timer()
+    # debug values
+    time_added = num_skipped = num_solved = step_solved = time_step = num_current = 0
 
-        # debug values
-        time_added = num_skipped = num_solved = step_solved = time_step = num_current = 0
+    before = timer()
+    for num_current, row in enumerate(reader):
+        o_sudoku, solution = row
+        # ignore header row
+        # or type(int(row[0])) != int:# or counter == 118:
+        if num_current <= START_AT:
+            continue
+        elif num_current == START_AT and START_AT != 0:
+            logging.info("skipped to desired start")
+            logging.info(f"it took {timer()-before}s")
 
-        for i, row in enumerate(reader):
-            # ignore header row
-            # or type(int(row[0])) != int:# or counter == 118:
-            if i < START_AT:
-                continue
-            elif i == START_AT:
-                logging.info("skipped to desired start")
-                logging.info(f"it took {timer()-before}s")
 
-            num_current = reader.line_num - START_AT
+        
 
-            # if any chars are not numbers
-            if not all(c in "0123456789" for c in row[0]):
-                print("row is not a sudoku:")
-                print(row[0])
-                continue
+        # scheduled summary
+        if num_current % NUM_STEP == 0 and ENABLE_STEP_SUMMARY:
+            logging.info(
+                f"Average stats for the last {NUM_STEP} Solutions:")
+            logging.info(f"% solved: {round(step_solved/NUM_STEP*100, 4)}")
+            logging.info(
+                f"Average time per Puzzle: {round((time_step)/(NUM_STEP)*1000, 3)}ms")
+            logging.info("")
+            time_step = 0
+            step_solved = 0
 
-            # scheduled summary
-            if reader.line_num % NUM_STEP == 0 and ENABLE_STEP_SUMMARY:
-                logging.info(
-                    f"Average stats for the last {NUM_STEP} Solutions:")
-                logging.info(f"% soved: {round(step_solved/NUM_STEP*100, 4)}")
-                logging.info(
-                    f"Average time per Puzzle: {round((time_step)/(NUM_STEP)*1000, 3)}ms")
-                logging.info("")
-                time_step = 0
-                step_solved = 0
+        # end summary
+        if num_current+1 >= NUM_LINES:
+            
+            break
 
-            # end summary
-            if reader.line_num >= NUM_LINES:
-                logging.info("all Puzzles solved or skipped")
-                logging.info(f"Soved: {round(num_solved/num_current*100, 2)}%")
-                logging.info(f"Added time: {time_added}s")
-                logging.info(f"Total time: {timer()-before}s")
-                logging.info(
-                    f"average time per Puzzle: {round((time_added/(NUM_LINES-START_AT))*1000, 3)} ms")
-                logging.info(NUM_STEP)
+        # if not solution:
+        #     solution = None
+        # else:
+        #     solution = None
+        o_sudoku = o_sudoku
+        # splits the string into list of ints
+        sudoku = [int(char) for char in o_sudoku]
+        before_solve = timer()
+        solve(sudoku)
+        after_solve = timer()
+        time_added += after_solve-before_solve
+        time_step += after_solve-before_solve
 
-                logging.info(f"Lines read: {num_current}")
-                time.sleep(1)
-                return
+        # validate(sudoku)
 
-            if len(row) == 2:
-                solution = row[1]
-            else:
-                solution = None
-            o_sudoku = [row[0]]
-            # splits the string into list of ints
-            sudoku = [int(char) for char in row[0]]
-            before_solve = timer()
-            s = Sudoku(row[0])
-            solve(sudoku)
-            after_solve = timer()
-            time_added += after_solve-before_solve
-            time_step += after_solve-before_solve
+        # for i, char in enumerate(row[0]):
+        #     pass
+        finalSud = listToString(sudoku)
 
-            validate(sudoku)
+        # error in soduku
+        if "0" in finalSud:
+            # logging.info("sudoku number "+str(reader.line_num)+" not solved")
+            # logging.info(finalSud)
+            # logging.info(row[1])
+            num_skipped += 1
+            continue
+        
+        elif finalSud == solution:
+            # logging.info(finalSud)
+            # logging.info("solved in: " + str(round(after_solve-before_solve,5)))
+            num_solved += 1
+            step_solved += 1
+            continue
+        elif not solution and validate(finalSud):
+            # logging.info("no solution supplied")
 
-            # for i, char in enumerate(row[0]):
-            #     pass
-            finalSud = listToString(sudoku)
+            num_solved += 1
+            step_solved += 1
+            continue
+        else:
+            logging.error("Sudoku "+str((num_current+1))+" has a mistake")
+            logging.info(finalSud)
+            logging.info(solution)
+            num_skipped += 1
+            continue
 
-            # error in soduku
-            if "0" in finalSud:
-                # logging.info("sudoku number "+str(reader.line_num)+" not solved")
-                # logging.info(finalSud)
-                # logging.info(row[1])
-                num_skipped += 1
-                continue
-            elif not solution:
-                # logging.info(finalSud)
-                num_solved += 1
-                step_solved += 1
-                continue
-            elif finalSud == solution:
-                # logging.info(finalSud)
-                # logging.info("solved in: " + str(round(after_solve-before_solve,5)))
-                num_solved += 1
-                step_solved += 1
-                continue
-            else:
-                logging.error("Sudoku "+str(reader.line_num)+" has a mistake")
-                logging.info(finalSud)
-                logging.info(row[1])
-                num_skipped += 1
-                continue
+    logging.info("all Puzzles solved or skipped")
+    logging.info(
+        f"Solved: {num_solved}/{(num_current+1)}:{round(num_solved/(num_current+1)*100, 2)}%")
+    logging.info(f"Solving time: {time_added}s")
+    logging.info(f"Total time: {timer()-before}s")
+    logging.info(
+        f"average time per Puzzle: {round((time_added/(NUM_LINES-START_AT))*1000, 3)} ms")
+    logging.info(f"Lines read: {(num_current+1)}")
+    time.sleep(1)
 
+def getSudokus(num: int, csv_file):
+    if not csv_file:
+        gen_start = timer()
+        csv_file = "tmp.csv"
+        cmd = ["node", "qqwing-1.3.4/qqwing-main-1.3.4.min.js", "--generate",
+               str(num), "--csv", "--solution", "--difficulty", "intermediate"]
+
+        logging.info(f"generating {num} Sudokus ... this might take a while (~{round(num/7, 2)}s)")
+        logging.info("if you feed me a csv with sudokus, you can skip this step")
+        
+        file = open(csv_file, "w")
+        proc = subprocess.Popen(cmd, stdout=file,
+                                stderr=subprocess.PIPE)
+        # proc.stderr.readline()
+        c = proc.communicate()
+        return_code = proc.wait()
+        logging.info(f"Done! It took {round(timer()-gen_start, 2)} seconds")
+        if return_code:
+            raise subprocess.CalledProcessError(return_code, cmd)
+    reader = csv.DictReader(open(csv_file, "r"))
+    headers = reader.fieldnames
+    for row in reader:
+        o_sudoku = row[headers[0]].replace(".", "0")
+        solution = row.get(headers[1], None) if len(headers) >= 2 else None
+        # if any chars are not numbers
+        if not len(o_sudoku) == 81 and all(c in "0123456789" for c in o_sudoku):
+            print("row is not a sudoku:")
+            print(o_sudoku)
+            continue
+
+        yield (o_sudoku, solution)
 
 def solve(sudoku: List[int]):
     possibleValues: List[List[int]] = [
@@ -156,15 +202,17 @@ def solve(sudoku: List[int]):
         #     continue
         else:
             break
+    return sudoku
 
 
 def validate(sudoku: List[int]) -> bool:
-    print(sudoku)
+    # print(sudoku)
 
-    if 0 in sudoku:
-        #print("unsolved Tiles")
+    if "0" in sudoku:
+        print("unsolved Tiles:", sudoku)
         return False
     else:
+        # print(sudoku)
         return True
     # else:
     #     for row in CONNECTED.rows:
@@ -311,21 +359,21 @@ def listToString(lst: List[int]) -> str:
 
 def getArgs() -> argparse.Namespace:
     parser = argparse.ArgumentParser()
-    parser.add_argument('-f', '--file', type=str, default="sudoku.csv",
+    parser.add_argument('-f', '--file', type=str, default="",
                         help=".csv file with sudokus (format: [unsolved 0-9, solved 1-9]) defaults to sudoku.csv")
-    parser.add_argument('-ss', '--step_summary', action='store_true')
+    parser.add_argument('-ss', '--step_summary', action='store_false')
     parser.add_argument('-sn', '--step_number', type=int, default=500,
                         help="sets the number of solved sudokus between summaries")
-    parser.add_argument('-n', '--num_lines', type=int, default=2000,
+    parser.add_argument('-n', '--num_lines', type=int, default=100,
                         help="how many lines the solver should read, useful for large csv files")
     parser.add_argument('-s', '--start', type=int, default=0,
                         help="from which line the solver should start")
     args = parser.parse_args()
     print(args)
 
-    if not os.path.exists(args.file):
+    if not os.path.exists(args.file) and args.file:
         print("file does not exist")
-    elif not args.file.lower().endswith(".csv"):
+    elif not args.file.lower().endswith(".csv") and args.file:
         print("not a csv file")
 
     return args
@@ -464,4 +512,5 @@ class Sudoku():
 
 
 if __name__ == "__main__":
-    main()
+    # smaller_csv()
+   main()

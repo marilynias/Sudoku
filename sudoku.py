@@ -539,7 +539,7 @@ class GameBoard(sprite.Sprite):
         self.color_line = Color("black")
 
         # Sudoku
-        self.sudoku, self.solution = self._get_sudoku_from_qqwing()
+        self.sudoku, self.solution = self._get_sudoku_from_cvs()
         # self.sudoku, self.solution = self.get_sudoku_from_cvs()
         #board
         self.position = (20,20)
@@ -622,7 +622,7 @@ class GameBoard(sprite.Sprite):
                 Tile(self.cubesize, ind, self.sudoku[ind], tile_font))
 
     def reset(self):
-        self.sudoku, self.solution = self._get_sudoku_from_qqwing()
+        self.sudoku, self.solution = self._get_sudoku_from_cvs()
         self.ind +=1
         # self.sudoku, self.solution = self.get_sudoku_from_cvs()
         for i, tile in enumerate(tiles):
@@ -1129,7 +1129,7 @@ class ResetButton(Tile_parent):
         self.update_sprite()
      
     def select(self, mod=False):
-        reset()
+        gameBoard.reset()
 
 class SelectRulesButton(Tile_parent):
     def __init__(self, size, position: tuple, string: str, font: str) -> None:
