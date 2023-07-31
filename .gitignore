@@ -1,6 +1,8 @@
 # General 
 Thumbs.db
 sudoku.csv
+sudoku.py
+tmp.csv
 
 # Python
 # Byte-compiled / optimized / DLL files
@@ -162,7 +164,7 @@ cython_debug/
 #  be found at https://github.com/github/gitignore/blob/main/Global/JetBrains.gitignore
 #  and can be added to the global gitignore or merged into this file.  For a more nuclear
 #  option (not recommended) you can uncomment the following to ignore the entire idea folder.
-#.idea/
+.idea/
 
 
 
@@ -202,7 +204,7 @@ bld/
 
 # Visual Studio 2015/2017 cache/options directory
 .vs/
-# .vscode/
+.vscode/
 # Uncomment if you have tasks that create the project's static files in wwwroot
 #wwwroot/
 
