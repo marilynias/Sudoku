@@ -14,6 +14,14 @@ import timeit
 from typing import List, Tuple
 
 
+num_used = {
+    "sole_candidate":0,
+    "hidden_singles":0, 
+    "naked_subset":0, 
+    "pointing_subset":0,
+    "box_line_reduction":0}
+
+
 def main():
     def _check_before_solve():
         if num_current <= start_at:
@@ -123,7 +131,7 @@ def main():
 
     
 
-def _get_sudokus(num: int, csv_file):
+def _get_sudokus(num: int, csv_file = None, difficulty="intermediate"):
     if not csv_file:
         gen_start = timer()
         csv_file = "tmp.csv"
@@ -135,10 +143,10 @@ def _get_sudokus(num: int, csv_file):
             "--csv",
             "--solution",
             "--difficulty",
-            "intermediate",
+            difficulty,
         ]
         logging.info(
-            "generating %d Sudokus ... this might take a while (~%ds)", num, round(num / 7, 2)
+            "generating %d Sudokus ... this might take a while (~%ds)", num, round(num / 10, 2)
         )
         logging.info("if you feed me a csv with sudokus, you can skip this step")
         with open(csv_file, "w") as file:
@@ -168,7 +176,10 @@ def _run_logic(possibleValues, sudoku) -> bool:
         return True
     elif _naked_subset(sudoku, possibleValues):
         return True
-    else: return _pointing_subset(sudoku, possibleValues)
+    elif _pointing_subset(sudoku, possibleValues):
+        return True
+    else:
+        return _box_line_reduction(sudoku, possibleValues)
 
 def solve(sudoku: List[int]):
     possible_values: List[List[int]] = [
@@ -180,15 +191,17 @@ def solve(sudoku: List[int]):
             return sudoku
         if _run_logic(possible_values, sudoku):
             continue
+        else:
+            return sudoku
 
         # elif boxLineReduction(sudoku, possibleValues ):
         break
     return sudoku
 
 
-def validate(sudoku: List[int]) -> bool:
+def validate(sudoku: List[int|str]) -> bool:
 
-    if "0" in sudoku:
+    if "0" in sudoku or 0 in sudoku:
         # print("unsolved Tiles:", sudoku)
         return False
     elif any(val in connected.get_connected_values_from_sud(i, sudoku) for i, val in enumerate(sudoku)):
@@ -227,6 +240,8 @@ def _sole_candidate(sudoku: List[int], possibleValues: List[List[int]]) -> bool:
         if sudoku[ind] == 0:
             if len(possibleValues[ind]) == 1:
                 could_assign = _assign_value(sudoku, possibleValues, ind, possibleValues[ind][0])
+    if could_assign:
+        num_used["sole_candidate"]+=1
     return could_assign
 
 
@@ -240,6 +255,8 @@ def _hidden_singles(sudoku: List[int], possibleValues: List[List[int]]) -> bool:
                 ]
                 if len(possTilesForVal) == 1:
                     could_assign = _assign_value(sudoku, possibleValues, possTilesForVal[0], num)
+    if could_assign:
+        num_used["hidden_singles"]+=1
     return could_assign
 
 
@@ -274,7 +291,8 @@ def _naked_subset(sudoku: List[int], possibleValues: List[List[int]]) -> bool:
                             if val in possibleValues[tile]:
                                 could_remove = True
                                 possibleValues[tileRemVal].remove(val)
-
+    if could_remove:
+        num_used["naked_subset"]+=1
     return could_remove
 
 
@@ -295,6 +313,8 @@ def _pointing_subset(sudoku: List[int], possibleValues: List[List[int]]) -> bool
                                     could_remove = True
 
                                     possibleValues[t].remove(num)
+    if could_remove:
+        num_used["pointing_subset"]+=1
     return could_remove
 
 
@@ -311,11 +331,12 @@ def _box_line_reduction(sudoku: List[int], possibleValues: List[List[int]]) -> b
                     for t in possTilesForVal
                 )):
                     for t in connected.get_connected_to_ind(possTilesForVal[0])[2]:
-                        if num in possibleValues[t]:
-                            logging.info("removed %d", num)
+                        if num in possibleValues[t] and not t in ssub:
+                            # logging.info("removed %d", num)
                             possibleValues[t].remove(num)
                             could_remove = True
-
+    if could_remove:
+        num_used["box_line_reduction"]+=1
     return could_remove
 
 
@@ -487,3 +508,5 @@ class SudokuGrid:
 
 if __name__ == "__main__":
     main()
+
+connected = SudokuGrid()

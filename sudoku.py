@@ -9,6 +9,7 @@ import queue
 import logging
 from logging.handlers import QueueHandler, QueueListener
 
+tiles = []
 
 def main():
     # logging: Handling it on a different Thread, to not clog up the processing power
@@ -213,32 +214,77 @@ def reset():
     gameBoard.reset()
     logging.info("----- CLEARED -----")
 
-def check_board():
+def check_solution():
     boardState = ""
+    validity=True
     for tile in tiles:
         assert isinstance(tile,Tile)
         boardState += str(tile.value)
 
-
-
-    if boardState == gameBoard.solution:            
-        for tile in tiles:
-            assert isinstance(tile, Tile)
-            tile.reset_color()
-        return True
-    # else:
-    validity = None
+    # if boardState == gameBoard.solution:            
+    for tile in tiles:
+        assert isinstance(tile, Tile)
+        tile.reset_color()
+            # tile.update_color("green")
+        
+        # else:
+        
     for i, tile in enumerate(tiles):
         assert isinstance(tile, Tile)
         if boardState[i] != gameBoard.solution[i]:
             if tile.value == 0:
                 tile.update_color(tile.color_default, True)
+                validity = False
             else:
                 tile.update_color(Color("red"), True)
                 validity = False
                 
         elif not tile._locked:
             tile.update_color(Color("green"), True)
+
+    return validity
+
+def check_unique():
+    boardState = ""
+    validity = True
+    for tile in tiles:
+        assert isinstance(tile,Tile)
+        boardState += str(tile.value)
+
+    for i, tile in enumerate(tiles):
+        assert isinstance(tile, Tile)
+        if tile.value == 0:
+            tile.update_color(tile.color_default, True)
+            validity = False
+            continue
+        if any(tile.value == t.value for t in tile.row if t != tile)  or \
+            any(tile.value == t.value for t in tile.column if t != tile) or \
+            any(tile.value == t.value for t in tile.block if t != tile):
+
+            print(tile.value)
+            print([t.value for t in tile.row if t != tile])
+            print([t.value for t in tile.column if t != tile])
+            print([t.value for t in tile.block if t != tile])
+            
+            tile.update_color(Color("red"), True)
+            validity = False
+            # return False
+                
+        elif not tile._locked:
+            tile.update_color(Color("green"), True)
+
+    return validity
+
+def check_board():
+    
+
+    validity = None
+    if gameBoard.solution:
+        validity= check_solution()
+    else:
+        validity=check_unique()
+
+    
     return validity
 
 
@@ -246,6 +292,7 @@ class Rules():
     def __init__(self) -> None:
         self.timeTaken = {"assign":0., "soleCand":0., "hiddCand":0., "nakedSub":0., "hiddSub2":0., "hiddSub3":0., "pointSub":0., "xwing":0., "ywing":0.}
         self.checktime = 0.
+        self.numUsed = {"soleCand":0., "hiddCand":0., "nakedSub":0., "hiddSub2":0., "hiddSub3":0., "pointSub":0., "xwing":0., "ywing":0., "box_line_reduction":0}
 
     def assignPossibleValues(self) -> bool:
         before = timer()
@@ -254,6 +301,7 @@ class Rules():
 
         if any(len(tile.possibleValues) == 0 for tile in tiles if isinstance(tile,Tile) and tile.value == 0):
             logging.info("No possible numbers for a Tile, resetting all possibleValues")
+            # raise Exception("No possible numbers for a Tile")
             for tile in tiles:
                 assert isinstance(tile, Tile)
                 tile.possibleValues = [i for i in range(1,10)]
@@ -262,6 +310,7 @@ class Rules():
             if rootTile.value == 0:
                 if rootTile.possibleValues == []:
                     logging.warning("No possible numbers for this Tile!!, some number is wrong")
+                    raise ValueError("No possible numbers for this Tile!!, some number is wrong")
                     return False
                 
                 for subset in (rootTile.block, rootTile.row, rootTile.column):
@@ -277,6 +326,7 @@ class Rules():
                 rootTile.pen_marks = []
         after = timer()
         self.timeTaken["assign"] += after-before
+
         return couldAssign
 
     def soleCandidate(self) -> list:
@@ -292,6 +342,8 @@ class Rules():
                     listSoles.append((tile, val))
         after = timer()
         self.timeTaken["soleCand"] += after-before
+        if listSoles:
+            self.numUsed["soleCand"] +=1
         return listSoles
 
     def hiddenSingles(self) -> list:
@@ -306,6 +358,8 @@ class Rules():
                         listHidden.append((possTilesForVal[0], i))
         after = timer()
         self.timeTaken["hiddCand"] += after-before
+        if listHidden:
+            self.numUsed["hiddCand"] +=1
         return listHidden
 
     def nakedSubset(self):
@@ -346,6 +400,7 @@ class Rules():
                                     
                                     after = timer()
                                     self.timeTaken["nakedSub"] += after-before
+                                    self.numUsed["nakedSub"] +=1
                                     return couldRemove
         after = timer()
         self.timeTaken["nakedSub"] += after-before
@@ -374,6 +429,7 @@ class Rules():
                                 if any(num not in comb  for tile in tilesWithNums if isinstance(tile,Tile) for num in tile.possibleValues):
                                     after = timer()
                                     self.timeTaken["hiddSub"+str(length)] += after-before
+                                    self.numUsed["hiddSub"+str(length)] +=1
                                     return comb, tilesWithNums
         after = timer()
         self.timeTaken["hiddSub"+str(length)] += after-before
@@ -409,6 +465,7 @@ class Rules():
                         if couldRemove:
                             after = timer()
                             self.timeTaken["pointSub"] += after-before
+                            self.numUsed["pointSub"] +=1
                             return couldRemove
 
         after = timer()
@@ -416,7 +473,31 @@ class Rules():
         # logging.info(f"Time taken: {round((after-before)*1000, 2)}ms")
         # logging.info("")                       
         
+        logging.error("")
+        
         return couldRemove
+
+    def box_line_reduction(self) -> bool:
+        could_remove = False
+        for sub in (columns, rows):
+            for ssub in sub:
+                for num in range(1, 10):
+                    possTilesForVal = [
+                        tile for tile in ssub if tile.value == 0 and num in tile.possibleValues
+                    ]
+                    if len(possTilesForVal) > 1 and all((
+                        t in possTilesForVal[0].block
+                        for t in possTilesForVal
+                    )):
+                        for t in possTilesForVal[0].block:
+                            if num in t.possibleValues:
+                                if t not in ssub:
+                                    logging.info("boxline: removed %d", num)
+                                    t.possibleValues.remove(num)
+                                    could_remove = True
+        if could_remove:
+            self.numUsed["box_line_reduction"]+=1
+        return could_remove
 
     def xwing(self):
         before = timer()
@@ -457,6 +538,7 @@ class Rules():
                                                 logging.info(f"Due to XWING {i} at ({rootTile.x+1}, {rootTile.y+1}), ({tile2.x+1}, {tile2.y+1}), ({tile3.x+1}, {tile3.y+1}), ({tile4.x+1}, {tile4.y+1})")
                                                 after = timer()
                                                 self.timeTaken["xwing"] += after-before
+                                                self.numUsed["xwing"] +=1
                                                 return True
         after = timer()
         self.timeTaken["xwing"] += after-before
@@ -521,6 +603,7 @@ class Rules():
                                     if ynum in t.possibleValues:
                                         t.possibleValues.remove(ynum)
                                         logging.info(f"YWing: tile ({tile.x+1},{tile.y+1}) cant have val {ynum}" )
+                                        self.numUsed["ywing"] +=1
                                     # else:
                                     #     logging.info(f"YWing: tile {tile.x+1}, {tile.y+1} cant have val {ynum}" )
                             
@@ -530,7 +613,7 @@ class Rules():
         self.timeTaken["ywing"] += after-before
 
 class GameBoard(sprite.Sprite):
-    def __init__(self, cubesize:int) -> None:
+    def __init__(self, cubesize:int, sud=None, sol=None) -> None:
         self.cubesize = cubesize
         self.ind = 0
 
@@ -539,7 +622,10 @@ class GameBoard(sprite.Sprite):
         self.color_line = Color("black")
 
         # Sudoku
-        self.sudoku, self.solution = self._get_sudoku_from_cvs()
+        if sud and sol:
+            self.sudoku, self.solution = sud, sol
+        else:
+            self.sudoku, self.solution = self.get_next_sudoku()
         # self.sudoku, self.solution = self.get_sudoku_from_cvs()
         #board
         self.position = (20,20)
@@ -570,13 +656,14 @@ class GameBoard(sprite.Sprite):
 
     def _get_sudoku_from_qqwing(self):
         clean_out = []
+        out = []
         filePath = os.path.dirname(os.path.abspath(__file__))
         # difficulties: simple,easy, intermediate, or expert
         with sp.Popen(["node", os.path.join(filePath, "qqwing-1.3.4", "qqwing-main-1.3.4.js"), 
-            "--generate", "1", "--one-line", "--solution", "--difficulty", "expert"], stdout=sp.PIPE) as proc:
+            "--generate", "1", "--one-line", "--solution", "--difficulty", "intermediate"], stdout=sp.PIPE) as proc:
             assert proc.stdout is not None
             out = proc.stdout.readlines()
-        out = []
+        
         if len(out) > 0:
             for sudoku in out:
                 cs = sudoku.decode('UTF-8')
@@ -595,17 +682,22 @@ class GameBoard(sprite.Sprite):
         return sudoku, solution
 
     def _get_sudoku_from_cvs(self):
-        with open('sudoku.csv', newline='') as f:
+        with open('sudoku17.csv', newline='') as f:
             reader = csv.reader(f)
             logging.info(f"Lines read: {reader.line_num}")
             counter = 0
             for row in reader:
                 if counter > self.ind:
+                    print(self.ind)
                     logging.info(f"Sudoku: {row[0]}")
-                    logging.info(f"Solution: {row[1]}")
-                    return row[0], row[1]
+                    if len(row) >= 2:
+                        logging.info(f"Solution: {row[1]}")
+                    return row[0], row[1] if len(row) >= 2 else None
                 counter +=1
         return '070000043040009610800634900094052000358460020000800530080070091902100005007040802', '679518243543729618821634957794352186358461729216897534485276391962183475137945862'
+
+    def get_next_sudoku(self):
+        return self._get_sudoku_from_qqwing()
 
     def _build_Board(self):
         global tiles, rows, blocks, columns
@@ -622,8 +714,9 @@ class GameBoard(sprite.Sprite):
                 Tile(self.cubesize, ind, self.sudoku[ind], tile_font))
 
     def reset(self):
-        self.sudoku, self.solution = self._get_sudoku_from_cvs()
         self.ind +=1
+        self.sudoku, self.solution = self.get_next_sudoku()
+        
         # self.sudoku, self.solution = self.get_sudoku_from_cvs()
         for i, tile in enumerate(tiles):
             assert isinstance(tile, Tile)
@@ -674,9 +767,11 @@ class Tile_parent(sprite.Sprite):
         except:
             pass
 
-    def set_value(self, val:str):
-        self.title = val
-        
+    def set_value(self, val:str|int):
+        val = str(val)
+        self.title = str(val)
+        if val.isdigit():
+            self.value = int(val)
         assert isinstance (self.rect, Rect)
         fontsize = math.floor(self.rect.height/4)
         while self.txtfont.size(val)[0] > self.rect.size[0]:
@@ -717,7 +812,7 @@ class Tile(Tile_parent):
         self.value = int(value)
         self.pen_marks = []
         self.spen_marks = []
-        self.possibleValues = []
+        self.possibleValues = list(range(1,10)) if value== '0' else []
         self.index = position
         
         marktxt = self._penmark_font.render("0", True, (0, 0, 0))
@@ -765,7 +860,7 @@ class Tile(Tile_parent):
         elif self.value != 0:
             for tile in tiles:
                 assert isinstance(tile, Tile)
-                if tile.value == self.value or self.value in tile.possibleValues:
+                if tile.value == self.value:# or self.value in tile.possibleValues:
                         tile.select()
       
     def deselect(self):
@@ -875,6 +970,17 @@ class Tile(Tile_parent):
     def getSubsets(self):
         return (self.column, self.row, self.block)
 
+    def remove_val_from_subs_poss(self, val:int):
+        # if not self.value:
+        self.clear()
+        self.set_value(val)
+            # self.value = val
+        for subs in self.getSubsets():
+            for tile in subs:
+                    assert type(tile) == Tile
+                    if val in tile.possibleValues:
+                        tile.possibleValues.remove(val)
+
 class UIButton(Tile_parent):
     def __init__(self, size:int, position:tuple, string:str, font:str, mode:int) -> None:
         super().__init__(size, position, string, font)
@@ -973,13 +1079,16 @@ class SolveButton(Tile_parent):
         before = timer()
         solved = False
         
+        if check_board():
+            gameBoard.reset()
+            return
         while 1:
             if self.getNext():
                 if mod: continue
                 else: break
             else:
-                solved = check_board()
-                break
+                # solved = check_board()
+                return tiles
         
         after = timer()
         for key, val in rules.timeTaken.items():
@@ -1036,14 +1145,17 @@ class SolveButton(Tile_parent):
             return True
         # logging.info(f"Time taken: {round((t_hSubset3-t_hSubset2)*1000, 2)}ms")
         if rules.pointingSubset():
-            logging.info("due to pointing subset")
+            # logging.info("due to pointing subset")
+            return True
+        box_line_reduction = rules.box_line_reduction()
+        if box_line_reduction:
             return True
         xwing = rules.xwing()
         if xwing:
             return True
         ywing = rules.ywing()
         if ywing:
-            pass
+            return True
         
         
         else: 
@@ -1051,10 +1163,12 @@ class SolveButton(Tile_parent):
             return False
             
     def writeVal(self, lst):
-        for i in lst:                
+        for i in lst:    
+            i[0].remove_val_from_subs_poss(i[1])            
             # logging.info(f"({i[0].x+1}, {i[0].y+1}): {i[1]}")
-            i[0].clear()
-            i[0].update_value(str(i[1]))
+            # i[0].clear()
+            # i[0].update_value(str(i[1]))
+
         # logging.info("")
 
     def _rem_subset_from_group(self, subset, group):
@@ -1142,3 +1256,10 @@ class SelectRulesButton(Tile_parent):
 
 if __name__ == "__main__":
     main()
+else:
+    pygame.init()
+    rules = Rules()
+    edit_mode=0
+    UIs = sprite.Group()
+    gameBoard = GameBoard(10)
+    solveBttn = SolveButton(10, (10, 10), "Solve", "arial")

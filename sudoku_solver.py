@@ -294,7 +294,10 @@ class Sudoku_solver(SudokuGrid):
     # 72 73 74|75 76 77|78 79 80
 
     def __init__(self, sudoku) -> None:
-        self.o_sudoku = sudoku
+        if type(sudoku) == list:
+            self.o_sudoku = sudoku
+        elif type(sudoku) == str:
+            self.o_sudoku = [int(s) for s in sudoku]
         # self.sudoku = self.o_sudoku.copy()
     
     def _run_logic(self, possibleValues, sudoku) -> bool:
@@ -304,8 +307,12 @@ class Sudoku_solver(SudokuGrid):
             return True
         elif self._naked_subset(sudoku, possibleValues):
             return True
+        elif self._pointing_subset(sudoku, possibleValues):
+            return True
+        elif self._box_line_reduction(sudoku, possibleValues):
+            return True
         else:
-            return self._pointing_subset(sudoku, possibleValues)
+            return False
 
     def _assign_possible_values(self, sudoku: List[int], possibleValues: List[List[int]]) -> bool:
         could_assign = False
@@ -416,7 +423,7 @@ class Sudoku_solver(SudokuGrid):
                     )):
                         for t in self.get_connected_to_ind(possTilesForVal[0])[2]:
                             if num in possibleValues[t]:
-                                logging.info("removed %d", num)
+                                # logging.info("removed %d", num)
                                 possibleValues[t].remove(num)
                                 could_remove = True
 
